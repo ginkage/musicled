@@ -22,6 +22,250 @@
 #include <algorithm>
 #include <iostream>
 
+class SlidingWindow {
+public:
+    SlidingWindow(int n) : buffer(new int[n]), size(n), pos(0) {
+        memset(buffer, 0, n * sizeof(int));
+    }
+
+    ~SlidingWindow() {
+        delete[] buffer;
+    }
+
+    // Replace oldest N values in the circular buffer with Values
+    void write(int *values, int n) {
+        for (int k, j = 0; j < n; j += k) {
+            k = std::min(pos + (n - j), size) - pos;
+            memcpy(buffer + pos, values + j, k * sizeof(int));
+            pos = (pos + k) % size;
+        }
+    }
+
+    // Retrieve N latest Values
+    void read(int *values, int n) {
+        int first = pos - n;
+        while (first < 0)
+            first += size;
+
+        for (int k, j = 0; j < n; j += k) {
+            k = std::min(first + (n - j), size) - first;
+            memcpy(values + j, buffer + first, k * sizeof(int));
+            first = (first + k) % size;
+        }
+    }
+
+private:
+    int *buffer;
+    int size;
+    int pos; // Position just after the last added value
+};
+
+class FFT {
+public:
+    FFT(int mm)
+    {
+        n = 1 << m;
+        m = mm;
+
+        // precompute tables
+        cos = new double[n / 2];
+        sin = new double[n / 2];
+
+        for (int i = 0; i < n / 2; i++) {
+            cos[i] = cos(-2 * M_PI * i / n);
+            sin[i] = sin(-2 * M_PI * i / n);
+        }
+
+        // Make a blackman window:
+        window = new double[n];
+        for (int i = 0; i < n; i++)
+            window[i] = 0.42 - 0.5 * cos(2 * M_PI * i / (n - 1)) + 0.08 * cos(4*M_PI*i/(n-1));
+    }
+
+    /***************************************************************
+     * fft.c
+     * Douglas L. Jones
+     * University of Illinois at Urbana-Champaign
+     * January 19, 1992
+     * http://cnx.rice.edu/content/m12016/latest/
+     *
+     *   fft: in-place radix-2 DIT DFT of a complex input
+     *
+     *   input:
+     * n: length of FFT: must be a power of two
+     * m: n = 2**m
+     *   input/output
+     * x: double array of length n with real part of data
+     * y: double array of length n with imag part of data
+     *
+     *   Permission to copy and use this program is granted
+     *   as long as this header is included.
+     ****************************************************************/
+    public void fft(double[] x, double[] y)
+    {
+        int i, j, k, n2, a;
+        double c, s, t1, t2;
+
+        // Bit-reverse
+        j = 0;
+        n2 = n / 2;
+        for (i = 1; i < n - 1; i++) {
+            int n1 = n2;
+            while (j >= n1) {
+                j = j - n1;
+                n1 = n1 / 2;
+            }
+
+            j = j + n1;
+
+            if (i < j) {
+                t1 = x[i];
+                x[i] = x[j];
+                x[j] = t1;
+                t1 = y[i];
+                y[i] = y[j];
+                y[j] = t1;
+            }
+        }
+
+        // FFT
+        n2 = 1;
+        for (i = 0; i < m; i++) {
+            int n1 = n2;
+            n2 = n2 + n2;
+            a = 0;
+
+            for (j=0; j < n1; j++) {
+                c = cos[a];
+                s = sin[a];
+                a += 1 << (m - i - 1);
+
+                for (k = j; k < n; k = k + n2) {
+                    t1 = c * x[k + n1] - s * y[k + n1];
+                    t2 = s * x[k + n1] + c * y[k + n1];
+                    x[k + n1] = x[k] - t1;
+                    y[k + n1] = y[k] - t2;
+                    x[k] = x[k] + t1;
+                    y[k] = y[k] + t2;
+                }
+            }
+        }
+    }
+
+private:
+    int n, m;
+
+    // Lookup tables.  Only need to recompute when size of FFT changes.
+    double* cos;
+    double* sin;
+    double* window;
+};
+
+/*
+private void doDrawHiFiFFT(Canvas canvas)
+{
+    int k, fbase = mCaptureSize - mCaptureUsed;
+    for (k = 0; k < mCaptureUsed; k++) {
+        re[k] = (left[fbase + k] + right[fbase + k]) * 0.5;
+        im[k] = 0;
+    }
+
+    fftCalc.fft(re, im);
+
+    if (drawMode == 1)
+        canvas.drawRGB(0, 0, 0);
+    Paint p = new Paint();
+
+    int maxFreq = mCaptureUsed;
+    double base = Math.log(Math.pow(2, 1.0 / 12.0));
+
+    double fcoef = Math.pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
+    double minFreq = mSamplingRate / maxFreq;
+    double minNote = Math.log(minFreq * fcoef) / base;
+    double minOctave = Math.floor(minNote / 12.0);
+    fcoef = Math.pow(2, ((4 - minOctave) * 12 + 9) / 12.0) / 440.0; // Shift everything by several octaves
+    double maxNote = Math.log(mSamplingRate * fcoef) / base;
+
+    int baseY = (mCanvasHeight * 3) / 4;
+
+    double kx = mCanvasWidth / maxNote;
+    double ky = mCanvasHeight * 0.5;
+    int lastx = -1;
+    int maxY = 0;
+    
+    double maxAmp = 0;
+    int maxR = 0, maxG = 0, maxB = 0;
+    int cRing = 0;
+    double peakN = 0, maxN = 0;
+
+    for (k = 1; k < maxFreq >> 1; k++) {
+        double amp = Math.hypot(re[k], im[k]) / 256.0;
+        double frequency = (k * (double) mSamplingRate) / maxFreq;
+        double note = Math.log(frequency * fcoef) / base; // note = 12 * Octave + Note
+        maxN = note;
+
+        if (drawMode == 1) {
+            int x = (int) Math.round(note * kx);
+            int y = (int) Math.round(amp * ky);
+
+            if (y > maxY)
+                maxY = y;
+
+            if (lastx != x) {
+                double spectre = note - 12.0 * Math.floor(note / 12.0); // spectre is within [0, 12)
+
+                lastx = x;
+                maxY = 0;
+
+                double R = clamp(spectre - 6);
+                double G = clamp(spectre - 10);
+                double B = clamp(spectre - 2);
+
+                double mx = Math.max(Math.max(R, G), B);
+                double mn = Math.min(Math.min(R, G), B);
+                double mm = mx - mn;
+                if (mm == 0) mm = 1;
+
+                R = (R - mn) / mm;
+                G = (G - mn) / mm;
+                B = (B - mn) / mm;
+
+                p.setARGB(255, (int) Math.round(R * 255), (int) Math.round(G * 255), (int) Math.round(B * 255));
+                canvas.drawLine(x, baseY, x, baseY - y, p);
+            }
+        }
+        else if (amp > maxAmp) {
+            maxAmp = amp;
+            double spectre = note - 12.0 * Math.floor(note / 12.0); // spectre is within [0, 12)
+
+            int ring = (96 - (int) Math.floor(spectre * 8)); // [1 .. 96]
+            cRing = ring + 48;
+            if (cRing > 100)
+                cRing -= 100; // [1 .. 100]
+
+            double R = clamp(spectre - 6);
+            double G = clamp(spectre - 10);
+            double B = clamp(spectre - 2);
+
+            double mx = Math.max(Math.max(R, G), B);
+            double mn = Math.min(Math.min(R, G), B);
+            double mm = mx - mn;
+            if (mm == 0) mm = 1;
+
+            maxR = (int) Math.round(255.0 * (R - mn) / mm);
+            maxG = (int) Math.round(255.0 * (G - mn) / mm);
+            maxB = (int) Math.round(255.0 * (B - mn) / mm);
+            peakN = note;
+        }
+    }
+    if (drawMode != 1)
+        canvas.drawRGB(maxR, maxG, maxB);
+    if (cRing != prevColor)
+        setColor(cRing);
+    prevColor = cRing;
+}
+*/
+
 double smoothDef[64] = { 0.8, 0.8, 1, 1, 0.8, 0.8, 1, 0.8, 0.8, 1, 1, 0.8, 1, 1, 0.8, 0.6, 0.6, 0.7, 0.8, 0.8, 0.8, 0.8,
     0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8,
     0.7, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6 };
@@ -218,7 +462,7 @@ int* separate_freq_bands(fftw_complex out[HALF_M][2], int bars, int lcf[200], in
         // process: get peaks
         for (i = lcf[o]; i <= hcf[o]; i++) {
             // getting r of compex
-            y[i] = pow(pow(*out[i][0], 2) + pow(*out[i][1], 2), 0.5);
+            y[i] = hypot(*out[i][0], *out[i][1]);
             peak[o] += y[i]; // adding upp band
         }
 
