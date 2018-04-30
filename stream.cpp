@@ -24,16 +24,18 @@
 
 class SlidingWindow {
 public:
-    SlidingWindow(int n) : buffer(new int[n]), size(n), pos(0) {
+    SlidingWindow(int n)
+        : buffer(new int[n])
+        , size(n)
+        , pos(0)
+    {
         memset(buffer, 0, n * sizeof(int));
     }
 
-    ~SlidingWindow() {
-        delete[] buffer;
-    }
-
+    ~SlidingWindow() { delete[] buffer; }
     // Replace oldest N values in the circular buffer with Values
-    void write(int *values, int n) {
+    void write(int* values, int n)
+    {
         for (int k, j = 0; j < n; j += k) {
             k = std::min(pos + (n - j), size) - pos;
             memcpy(buffer + pos, values + j, k * sizeof(int));
@@ -42,7 +44,8 @@ public:
     }
 
     // Retrieve N latest Values
-    void read(int *values, int n) {
+    void read(int* values, int n)
+    {
         int first = pos - n;
         while (first < 0)
             first += size;
@@ -55,7 +58,7 @@ public:
     }
 
 private:
-    int *buffer;
+    int* buffer;
     int size;
     int pos; // Position just after the last added value
 };
@@ -68,18 +71,18 @@ public:
         m = mm;
 
         // precompute tables
-        cos = new double[n / 2];
-        sin = new double[n / 2];
+        cost = new double[n / 2];
+        sint = new double[n / 2];
 
         for (int i = 0; i < n / 2; i++) {
-            cos[i] = cos(-2 * M_PI * i / n);
-            sin[i] = sin(-2 * M_PI * i / n);
+            cost[i] = cos(-2 * M_PI * i / n);
+            sint[i] = sin(-2 * M_PI * i / n);
         }
 
         // Make a blackman window:
         window = new double[n];
         for (int i = 0; i < n; i++)
-            window[i] = 0.42 - 0.5 * cos(2 * M_PI * i / (n - 1)) + 0.08 * cos(4*M_PI*i/(n-1));
+            window[i] = 0.42 - 0.5 * cos(2 * M_PI * i / (n - 1)) + 0.08 * cos(4 * M_PI * i / (n - 1));
     }
 
     /***************************************************************
@@ -101,7 +104,7 @@ public:
      *   Permission to copy and use this program is granted
      *   as long as this header is included.
      ****************************************************************/
-    public void fft(double[] x, double[] y)
+    void fft(double* x, double* y)
     {
         int i, j, k, n2, a;
         double c, s, t1, t2;
@@ -135,9 +138,9 @@ public:
             n2 = n2 + n2;
             a = 0;
 
-            for (j=0; j < n1; j++) {
-                c = cos[a];
-                s = sin[a];
+            for (j = 0; j < n1; j++) {
+                c = cost[a];
+                s = sint[a];
                 a += 1 << (m - i - 1);
 
                 for (k = j; k < n; k = k + n2) {
@@ -156,8 +159,8 @@ private:
     int n, m;
 
     // Lookup tables.  Only need to recompute when size of FFT changes.
-    double* cos;
-    double* sin;
+    double* cost;
+    double* sint;
     double* window;
 };
 
@@ -192,7 +195,7 @@ private void doDrawHiFiFFT(Canvas canvas)
     double ky = mCanvasHeight * 0.5;
     int lastx = -1;
     int maxY = 0;
-    
+
     double maxAmp = 0;
     int maxR = 0, maxG = 0, maxB = 0;
     int cRing = 0;
@@ -287,7 +290,7 @@ struct audio_data {
 #define CHANNELS_COUNT 2
 #define SAMPLE_RATE 44100
 
-constexpr char* audio_source = "hw:CARD=sndrpigooglevoi,DEV=0";
+const char* audio_source = "hw:CARD=sndrpigooglevoi,DEV=0";
 
 static void initialize_audio_parameters(snd_pcm_t** handle, struct audio_data* audio, snd_pcm_uframes_t* frames)
 {
@@ -439,7 +442,6 @@ void sig_handler(int sig_no)
 {
     if (sig_no == SIGINT) {
         printf("CTRL-C pressed -- goodbye\n");
-        audio.terminate = true;
     }
     signal(sig_no, SIG_DFL);
     raise(sig_no);
