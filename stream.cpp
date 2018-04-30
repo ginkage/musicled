@@ -273,24 +273,24 @@ double smoothDef[64] = { 0.8, 0.8, 1, 1, 0.8, 0.8, 1, 0.8, 0.8, 1, 1, 0.8, 1, 1,
     0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8,
     0.7, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6 };
 
-struct config_params {
-};
+// assuming stereo
+#define CHANNELS_COUNT 2
+#define SAMPLE_RATE 44100
+
+const char* audio_source = "hw:CARD=sndrpigooglevoi,DEV=0";
+constexpr int M = 2048;
+constexpr int HALF_M = M / 2 + 1;
+constexpr int M2 = 2 * HALF_M;
 
 struct audio_data {
-    int audio_out_r[2048];
-    int audio_out_l[2048];
+    int audio_out_r[M];
+    int audio_out_l[M];
     int format;
     unsigned int rate;
     int channels;
     bool terminate; // shared variable used to terminate audio thread
     char error_message[1024];
 };
-
-// assuming stereo
-#define CHANNELS_COUNT 2
-#define SAMPLE_RATE 44100
-
-const char* audio_source = "hw:CARD=sndrpigooglevoi,DEV=0";
 
 static void initialize_audio_parameters(snd_pcm_t** handle, struct audio_data* audio, snd_pcm_uframes_t* frames)
 {
@@ -312,8 +312,9 @@ static void initialize_audio_parameters(snd_pcm_t** handle, struct audio_data* a
     unsigned int sample_rate = SAMPLE_RATE;
     // trying our rate
     snd_pcm_hw_params_set_rate_near(*handle, params, &sample_rate, NULL);
-    // number of frames pr read
+    // number of frames per read
     snd_pcm_hw_params_set_period_size_near(*handle, params, frames, NULL);
+
     err = snd_pcm_hw_params(*handle, params); // attempting to set params
     if (err < 0) {
         fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(err));
@@ -327,6 +328,7 @@ static void initialize_audio_parameters(snd_pcm_t** handle, struct audio_data* a
 
     // getting actual format
     snd_pcm_hw_params_get_format(params, (snd_pcm_format_t*)&sample_rate);
+
     // converting result to number of bits
     if (sample_rate <= 5)
         audio->format = 16;
@@ -334,86 +336,44 @@ static void initialize_audio_parameters(snd_pcm_t** handle, struct audio_data* a
         audio->format = 24;
     else
         audio->format = 32;
+
     snd_pcm_hw_params_get_rate(params, &audio->rate, NULL);
     snd_pcm_hw_params_get_period_size(params, frames, NULL);
     // snd_pcm_hw_params_get_period_time(params, &sample_rate, &dir);
 }
-
-static int get_certain_frame(signed char* buffer, int buffer_index, int adjustment)
-{
-    // using the 10 upper bits this would give me a vert res of 1024, enough...
-    int temp = buffer[buffer_index + adjustment - 1] << 2;
-    int lo = buffer[buffer_index + adjustment - 2] >> 6;
-    if (lo < 0)
-        lo = abs(lo) + 1;
-    if (temp >= 0)
-        temp += lo;
-    else
-        temp -= lo;
-    return temp;
-}
-
-static void fill_audio_outs(struct audio_data* audio, signed char* buffer, const int size)
-{
-    int radj = audio->format / 4; // adjustments for interleaved
-    int ladj = audio->format / 8;
-    static int audio_out_buffer_index = 0;
-    // sorting out one channel and only biggest octet
-    for (int buffer_index = 0; buffer_index < size; buffer_index += ladj * 2) {
-        // first channel
-        int tempr = get_certain_frame(buffer, buffer_index, radj);
-        // second channel
-        int templ = get_certain_frame(buffer, buffer_index, ladj);
-
-        // mono: adding channels and storing it in the buffer
-        if (audio->channels == 1)
-            audio->audio_out_l[audio_out_buffer_index] = (templ + tempr) / 2;
-        else { // stereo storing channels in buffer
-            audio->audio_out_l[audio_out_buffer_index] = templ;
-            audio->audio_out_r[audio_out_buffer_index] = tempr;
-        }
-
-        ++audio_out_buffer_index;
-        audio_out_buffer_index %= 2048;
-    }
-}
-
-#define FRAMES_NUMBER 256
 
 void* input_alsa(void* data)
 {
     int err;
     struct audio_data* audio = (struct audio_data*)data;
     snd_pcm_t* handle;
-    snd_pcm_uframes_t frames = FRAMES_NUMBER;
-    int16_t buf[FRAMES_NUMBER * 2];
+    snd_pcm_uframes_t frames = 256;
     initialize_audio_parameters(&handle, audio, &frames);
-    // frames * bits/8 * channels
-    const int size = frames * (audio->format / 8) * CHANNELS_COUNT;
-    signed char* buffer = new signed char[size];
+    const int bpf = (audio->format / 8) * CHANNELS_COUNT;
+    const int size = frames * bpf;
+    uint8_t* buffer = new uint8_t[size];
     int n = 0;
+    int loff = (audio->format - 16) / 8;
+    int roff = (audio->format * CHANNELS_COUNT - 16) / 8;
 
     while (!audio->terminate) {
-        switch (audio->format) {
-        case 16:
-            err = snd_pcm_readi(handle, buf, frames);
-            for (int i = 0; i < FRAMES_NUMBER * 2; i += 2) {
-                if (audio->channels == 1)
-                    audio->audio_out_l[n] = (buf[i] + buf[i + 1]) / 2;
-                // stereo storing channels in buffer
-                if (audio->channels == 2) {
-                    audio->audio_out_l[n] = buf[i];
-                    audio->audio_out_r[n] = buf[i + 1];
-                }
-                n++;
-                if (n == 2048 - 1)
-                    n = 0;
+        err = snd_pcm_readi(handle, buffer, frames);
+
+        uint8_t* base = buffer;
+        for (unsigned int i = 0; i < frames; i++) {
+            int16_t left = *(int16_t*)(base + loff);
+            int16_t right = *(int16_t*)(base + roff);
+
+            if (audio->channels == 1)
+                audio->audio_out_l[n] = ((int32_t)left + (int32_t)right) / 2;
+            // stereo storing channels in buffer
+            if (audio->channels == 2) {
+                audio->audio_out_l[n] = left;
+                audio->audio_out_r[n] = right;
             }
-            break;
-        default:
-            err = snd_pcm_readi(handle, buffer, frames);
-            fill_audio_outs(audio, buffer, size);
-            break;
+
+            n = (n + 1) % M;
+            base += bpf;
         }
 
         if (err == -EPIPE) {
@@ -427,15 +387,11 @@ void* input_alsa(void* data)
         }
     }
 
-    delete[] buffer;
     snd_pcm_close(handle);
+    delete[] buffer;
 
     return NULL;
 }
-
-constexpr int M = 2048;
-constexpr int HALF_M = M / 2 + 1;
-constexpr int M2 = 2 * HALF_M;
 
 // general: handle signals
 void sig_handler(int sig_no)
