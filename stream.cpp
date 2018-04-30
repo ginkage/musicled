@@ -484,8 +484,6 @@ void redraw(struct audio_data* audio)
         last_x = x;
         last_y = y;
     }
-
-    //    XDrawLine(dis, win, gc, 10, 10, 190, 290);
 }
 
 // general: handle signals
@@ -551,16 +549,20 @@ int main()
     struct audio_data audio;
 
     double ignore = 0.0, sens = 1.0;
-    unsigned int lowcf = 50, highcf = 10000;
+    double lowcf = 50.0, highcf = 10000.0;
     double* smooth = smoothDef;
     int smcount = 64, height = 1000, bars = 48, framerate = 60;
     bool stereo = true;
 
-    // general: handle Ctrl+C
-    struct sigaction action;
-    memset(&action, 0, sizeof(action));
-    action.sa_handler = &sig_handler;
-    sigaction(SIGINT, &action, NULL);
+    init_x();
+
+    if (dis == nullptr) {
+        // general: handle Ctrl+C
+        struct sigaction action;
+        memset(&action, 0, sizeof(action));
+        action.sa_handler = &sig_handler;
+        sigaction(SIGINT, &action, NULL);
+    }
 
     // fft: planning to rock
     fftw_complex outl[HALF_M][2];
@@ -600,13 +602,11 @@ int main()
     if (stereo)
         bars = bars / 2; // in stereo onle half number of bars per channel
 
-    double freqconst = log10((float)lowcf / (float)highcf) / ((float)1 / ((float)bars + (float)1) - 1);
-
     // process: calculate cutoff frequencies
-    for (n = 0; n < bars + 1; n++) {
-        fc[n] = highcf * pow(10, freqconst * (-1) + ((((float)n + 1) / ((float)bars + 1)) * freqconst));
+    for (n = 0; n <= bars; n++) {
+        fc[n] = highcf * pow(lowcf / highcf, double(bars - n) / double(bars));
         fre[n] = fc[n] / (audio.rate / 2);
-        // remember nyquist!, pr my calculations this should be rate/2
+        // remember nyquist!, per my calculations this should be rate/2
         // and nyquist freq in M/2 but testing shows it is not...
         // or maybe the nq freq is in M/4
 
@@ -629,8 +629,6 @@ int main()
 
     if (stereo)
         bars = bars * 2;
-
-    init_x();
 
     XEvent event; /* the XEvent declaration !!! */
     KeySym key; /* a dealie-bob to handle KeyPress Events */
