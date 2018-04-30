@@ -22,29 +22,94 @@
 #include <algorithm>
 #include <iostream>
 
-class SlidingWindow {
+#include <X11/Xlib.h>
+#include <X11/Xos.h>
+#include <X11/Xutil.h>
+#include <stdio.h>
+
+Display* dis;
+int screen;
+Window win;
+GC gc;
+
+void init_x()
+{
+    /* get the colors black and white (see section for details) */
+    unsigned long black, white;
+
+    /* use the information from the environment variable DISPLAY
+       to create the X connection:
+     */
+    dis = XOpenDisplay((char*)0);
+
+    if (dis == nullptr)
+        return;
+
+    screen = DefaultScreen(dis);
+    black = BlackPixel(dis, screen), /* get color black */
+        white = WhitePixel(dis, screen); /* get color white */
+
+    /* once the display is initialized, create the window.
+       This window will be have be 200 pixels across and 300 down.
+       It will have the foreground white and background black
+     */
+    win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 640, 360, 5, black, white);
+
+    /* here is where some properties of the window can be set.
+       The third and fourth items indicate the name which appears
+       at the top of the window and the name of the minimized window
+       respectively.
+     */
+    XSetStandardProperties(dis, win, "My Window", "HI!", None, NULL, 0, NULL);
+
+    /* this routine determines which types of input are allowed in
+       the input.  see the appropriate section for details...
+     */
+    XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
+
+    /* create the Graphics Context */
+    gc = XCreateGC(dis, win, 0, 0);
+
+    /* clear the window and bring it on top of the other windows */
+    XClearWindow(dis, win);
+    XMapRaised(dis, win);
+};
+
+void close_x()
+{
+    if (dis == nullptr)
+        return;
+    /* it is good programming practice to return system resources to the
+       system...
+     */
+    XFreeGC(dis, gc);
+    XDestroyWindow(dis, win);
+    XCloseDisplay(dis);
+}
+
+template <class T> class SlidingWindow {
 public:
     SlidingWindow(int n)
-        : buffer(new int[n])
+        : buffer(new T[n])
         , size(n)
         , pos(0)
     {
-        memset(buffer, 0, n * sizeof(int));
+        memset(buffer, 0, n * sizeof(T));
     }
 
     ~SlidingWindow() { delete[] buffer; }
-    // Replace oldest N values in the circular buffer with Values
-    void write(int* values, int n)
+    /* Replace oldest N values in the circular buffer with Values */
+    void write(T* values, int n)
     {
         for (int k, j = 0; j < n; j += k) {
             k = std::min(pos + (n - j), size) - pos;
-            memcpy(buffer + pos, values + j, k * sizeof(int));
+            memcpy(buffer + pos, values + j, k * sizeof(T));
             pos = (pos + k) % size;
         }
     }
 
-    // Retrieve N latest Values
-    void read(int* values, int n)
+    /* Retrieve N latest Values */
+    void read(T* values, int n)
     {
         int first = pos - n;
         while (first < 0)
@@ -52,13 +117,13 @@ public:
 
         for (int k, j = 0; j < n; j += k) {
             k = std::min(first + (n - j), size) - first;
-            memcpy(values + j, buffer + first, k * sizeof(int));
+            memcpy(values + j, buffer + first, k * sizeof(T));
             first = (first + k) % size;
         }
     }
 
 private:
-    int* buffer;
+    T* buffer;
     int size;
     int pos; // Position just after the last added value
 };
@@ -283,13 +348,14 @@ constexpr int HALF_M = M / 2 + 1;
 constexpr int M2 = 2 * HALF_M;
 
 struct audio_data {
-    int audio_out_r[M];
-    int audio_out_l[M];
     int format;
     unsigned int rate;
     int channels;
     bool terminate; // shared variable used to terminate audio thread
     char error_message[1024];
+
+    SlidingWindow<double> left{ 65536 };
+    SlidingWindow<double> right{ 65536 };
 };
 
 static void initialize_audio_parameters(snd_pcm_t** handle, struct audio_data* audio, snd_pcm_uframes_t* frames)
@@ -352,7 +418,6 @@ void* input_alsa(void* data)
     const int bpf = (audio->format / 8) * CHANNELS_COUNT; // bytes per frame
     const int size = frames * bpf;
     uint8_t* buffer = new uint8_t[size];
-    int n = 0;
 
     const int stride = bpf / 2; // half-frame: bytes in a channel, or shorts in a frame
     const int loff = stride - 2; // Highest 2 bytes in the first half of a frame
@@ -360,22 +425,6 @@ void* input_alsa(void* data)
 
     while (!audio->terminate) {
         err = snd_pcm_readi(handle, buffer, frames);
-
-        uint16_t* left = (int16_t*)(buffer + loff);
-        uint16_t* right = (int16_t*)(buffer + roff);
-        for (unsigned int i = 0; i < frames; i++) {
-            if (audio->channels == 1)
-                audio->audio_out_l[n] = (int32_t(*left) + int32_t(*right)) / 2;
-            // stereo storing channels in buffer
-            if (audio->channels == 2) {
-                audio->audio_out_l[n] = *left;
-                audio->audio_out_r[n] = *right;
-            }
-
-            n = (n + 1) % M;
-            left += stride;
-            right += stride;
-        }
 
         if (err == -EPIPE) {
             /* EPIPE means overrun */
@@ -385,6 +434,21 @@ void* input_alsa(void* data)
             fprintf(stderr, "error from read: %s\n", snd_strerror(err));
         } else if (err != (int)frames) {
             fprintf(stderr, "short read, read %d %d frames\n", err, (int)frames);
+        } else {
+            double left_data[frames];
+            double right_data[frames];
+
+            int16_t* left = (int16_t*)(buffer + loff);
+            int16_t* right = (int16_t*)(buffer + roff);
+            for (unsigned int i = 0; i < frames; i++) {
+                left_data[i] = *left;
+                right_data[i] = *right;
+                left += stride;
+                right += stride;
+            }
+
+            audio->left.write(left_data, frames);
+            audio->right.write(right_data, frames);
         }
     }
 
@@ -392,6 +456,36 @@ void* input_alsa(void* data)
     delete[] buffer;
 
     return NULL;
+}
+
+void redraw(struct audio_data* audio)
+{
+    if (dis == nullptr)
+        return;
+    XClearWindow(dis, win);
+
+    int last_x = 0;
+    int last_y = 180;
+
+    double data[640 * 64];
+    audio->left.read(data, 640 * 64);
+
+    for (int i = 0; i < 640 * 64; i += 64) {
+        int x = i / 64;
+        int avg = 0;
+        for (int k = 0; k < 64; k++) {
+            avg += data[i];
+        }
+        avg /= 64;
+        int y = 180 + avg;
+
+        XDrawLine(dis, win, gc, last_x, last_y, x, y);
+
+        last_x = x;
+        last_y = y;
+    }
+
+    //    XDrawLine(dis, win, gc, 10, 10, 190, 290);
 }
 
 // general: handle signals
@@ -407,28 +501,25 @@ void sig_handler(int sig_no)
 int* separate_freq_bands(fftw_complex out[HALF_M][2], int bars, int lcf[200], int hcf[200], float k[200], int channel,
     double sens, double ignore)
 {
-    int o, i;
-    float peak[201];
     static int fl[200];
     static int fr[200];
-    int y[HALF_M];
-    float temp;
 
     // process: separate frequency bands
-    for (o = 0; o < bars; o++) {
-        peak[o] = 0;
+    for (int o = 0; o < bars; o++) {
+        float peak = 0;
 
         // process: get peaks
-        for (i = lcf[o]; i <= hcf[o]; i++) {
+        for (int i = lcf[o]; i <= hcf[o]; i++) {
             // getting r of compex
-            y[i] = hypot(*out[i][0], *out[i][1]);
-            peak[o] += y[i]; // adding upp band
+            peak += hypot(*out[i][0], *out[i][1]); // adding upp band
         }
 
-        peak[o] = peak[o] / (hcf[o] - lcf[o] + 1); // getting average
-        temp = peak[o] * k[o] * sens; // multiplying with k and adjusting to sens settings
+        peak /= (hcf[o] - lcf[o] + 1); // getting average
+        float temp = peak * k[o] * sens; // multiplying with k and adjusting to sens settings
+
         if (temp <= ignore)
             temp = 0;
+
         if (channel == 1)
             fl[o] = temp;
         else
@@ -441,41 +532,6 @@ int* separate_freq_bands(fftw_complex out[HALF_M][2], int bars, int lcf[200], in
         return fr;
 }
 
-int* monstercat_filter(int* f, int bars, int waves, double monstercat)
-{
-    int z;
-
-    // process [smoothing]: monstercat-style "average"
-
-    int m_y, de;
-    if (waves > 0) {
-        for (z = 0; z < bars; z++) { // waves
-            f[z] = f[z] / 1.25;
-            for (m_y = z - 1; m_y >= 0; m_y--) {
-                de = z - m_y;
-                f[m_y] = std::max(f[m_y], int(f[z] - pow(de, 2)));
-            }
-            for (m_y = z + 1; m_y < bars; m_y++) {
-                de = m_y - z;
-                f[m_y] = std::max(f[m_y], int(f[z] - pow(de, 2)));
-            }
-        }
-    } else if (monstercat > 0) {
-        for (z = 0; z < bars; z++) {
-            for (m_y = z - 1; m_y >= 0; m_y--) {
-                de = z - m_y;
-                f[m_y] = std::max(f[m_y], int(f[z] / pow(monstercat, de)));
-            }
-            for (m_y = z + 1; m_y < bars; m_y++) {
-                de = m_y - z;
-                f[m_y] = std::max(f[m_y], int(f[z] / pow(monstercat, de)));
-            }
-        }
-    }
-
-    return f;
-}
-
 // general: entry point
 int main()
 {
@@ -483,29 +539,22 @@ int main()
     pthread_t p_thread;
     float fc[200];
     float fre[200];
-    int f[200], lcf[200], hcf[200];
-    int *fl, *fr;
-    int fmem[200];
-    int flast[200];
+    int lcf[200], hcf[200];
     int sleep = 0;
-    int i, n, o;
-    int fall[200];
-    float fpeak[200];
+    int i, n;
     float k[200];
-    float g;
     struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
 
-    double inr[M2];
     double inl[M2];
+    double inr[M2];
 
     struct audio_data audio;
 
-    double monstercat = 1.5, integral = 0.9, gravity = 1.0, ignore = 0.0, sens = 1.0;
+    double ignore = 0.0, sens = 1.0;
     unsigned int lowcf = 50, highcf = 10000;
     double* smooth = smoothDef;
     int smcount = 64, height = 1000, bars = 48, framerate = 60;
-    bool stereo = true, autosens = true, waves = false;
-    bool senseLow = true;
+    bool stereo = true;
 
     // general: handle Ctrl+C
     struct sigaction action;
@@ -525,11 +574,6 @@ int main()
     audio.rate = 0;
     audio.terminate = false;
     audio.channels = (stereo ? 2 : 1);
-
-    for (i = 0; i < M; i++) {
-        audio.audio_out_l[i] = 0;
-        audio.audio_out_r[i] = 0;
-    }
 
     pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
 
@@ -552,17 +596,6 @@ int main()
                         "sample rate / 2");
         exit(EXIT_FAILURE);
     }
-
-    for (i = 0; i < 200; i++) {
-        flast[i] = 0;
-        fall[i] = 0;
-        fpeak[i] = 0;
-        fmem[i] = 0;
-        f[i] = 0;
-    }
-
-    // process [smoothing]: calculate gravity
-    g = gravity * ((float)height / 2160) * pow((60 / (float)framerate), 2.5);
 
     if (stereo)
         bars = bars / 2; // in stereo onle half number of bars per channel
@@ -597,21 +630,29 @@ int main()
     if (stereo)
         bars = bars * 2;
 
+    init_x();
+
+    XEvent event; /* the XEvent declaration !!! */
+    KeySym key; /* a dealie-bob to handle KeyPress Events */
+    char text[255]; /* a char buffer for KeyPress Events */
+
     while (!audio.terminate) {
         // process: populate input buffer and check if input is present
         bool silence = true;
-        for (i = 0; i < M2; i++) {
-            if (i < M) {
-                inl[i] = audio.audio_out_l[i];
-                if (stereo)
-                    inr[i] = audio.audio_out_r[i];
-                if (inl[i] || inr[i])
-                    silence = false;
-            } else {
-                inl[i] = 0;
-                if (stereo)
-                    inr[i] = 0;
-            }
+
+        audio.left.read(inl, M);
+        if (stereo)
+            audio.right.read(inr, M);
+
+        for (i = 0; i < M; i++) {
+            if (inl[i] || (stereo && inr[i]))
+                silence = false;
+        }
+
+        for (i = M; i < M2; i++) {
+            inl[i] = 0;
+            if (stereo)
+                inr[i] = 0;
         }
 
         if (silence)
@@ -626,11 +667,11 @@ int main()
                 fftw_execute(pl);
                 fftw_execute(pr);
 
-                fl = separate_freq_bands(outl, bars / 2, lcf, hcf, k, 1, sens, ignore);
-                fr = separate_freq_bands(outr, bars / 2, lcf, hcf, k, 2, sens, ignore);
+                separate_freq_bands(outl, bars / 2, lcf, hcf, k, 1, sens, ignore);
+                separate_freq_bands(outr, bars / 2, lcf, hcf, k, 2, sens, ignore);
             } else {
                 fftw_execute(pl);
-                fl = separate_freq_bands(outl, bars, lcf, hcf, k, 1, sens, ignore);
+                separate_freq_bands(outl, bars, lcf, hcf, k, 1, sens, ignore);
             }
         } else { //**if in sleep mode wait and continue**//
             // wait 1 sec, then check sound again.
@@ -640,90 +681,20 @@ int main()
             continue;
         }
 
-        // process [smoothing]
-
-        if (monstercat) {
-            if (stereo) {
-                fl = monstercat_filter(fl, bars / 2, waves, monstercat);
-                fr = monstercat_filter(fr, bars / 2, waves, monstercat);
-            } else {
-                fl = monstercat_filter(fl, bars, waves, monstercat);
-            }
-        }
-
-        // preperaing signal for drawing
-        for (o = 0; o < bars; o++) {
-            if (stereo) {
-                if (o < bars / 2) {
-                    f[o] = fl[bars / 2 - o - 1];
-                } else {
-                    f[o] = fr[o - bars / 2];
-                }
-            } else {
-                f[o] = fl[o];
-            }
-        }
-
-        // process [smoothing]: falloff
-        if (g > 0) {
-            for (o = 0; o < bars; o++) {
-                if (f[o] < flast[o]) {
-                    f[o] = fpeak[o] - (g * fall[o] * fall[o]);
-                    fall[o]++;
-                } else {
-                    fpeak[o] = f[o];
-                    fall[o] = 0;
-                }
-
-                flast[o] = f[o];
-            }
-        }
-
-        // process [smoothing]: integral
-        if (integral > 0) {
-            for (o = 0; o < bars; o++) {
-                f[o] = fmem[o] * integral + f[o];
-                fmem[o] = f[o];
-
-                int diff = (height + 1) - f[o];
-                if (diff < 0)
-                    diff = 0;
-                double div = 1 / (diff + 1);
-                fmem[o] = fmem[o] * (1 - div / 20);
-            }
-        }
-
-        // zero values causes divided by zero segfault
-        for (o = 0; o < bars; o++) {
-            if (f[o] < 1) {
-                f[o] = 1;
-            }
-        }
-
-        // autmatic sens adjustment
-        if (autosens) {
-            for (o = 0; o < bars; o++) {
-                if (f[o] > height) {
-                    senseLow = false;
-                    sens = sens * 0.985;
-                    break;
-                }
-                if (senseLow && !silence)
-                    sens = sens * 1.01;
-                if (o == bars - 1)
-                    sens = sens * 1.002;
-            }
-        }
-
-        // output: draw processed input
-        for (o = 0; o < bars; o++) {
-            std::cout << std::min(f[o], height) << ' ';
-        }
-        std::cout << std::endl;
-
         req.tv_sec = 0;
         req.tv_nsec = 1000000000.0f / framerate;
         nanosleep(&req, NULL);
+
+        while (dis != nullptr && XPending(dis) > 0) {
+            XNextEvent(dis, &event);
+
+            if (event.type == KeyPress && XLookupString(&event.xkey, text, 255, &key, 0) == 1) {
+                if (text[0] == 'q')
+                    audio.terminate = true;
+            }
+        }
+
+        redraw(&audio);
     }
 
     req.tv_sec = 0;
@@ -733,6 +704,8 @@ int main()
     //**telling audio thread to terminate**//
     audio.terminate = true;
     pthread_join(p_thread, NULL);
+
+    close_x();
 
     return 0;
 }
