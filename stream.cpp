@@ -536,23 +536,19 @@ int main()
     // general: define variables
     pthread_t p_thread;
     float fc[200];
-    float fre[200];
     int lcf[200], hcf[200];
     int sleep = 0;
     int i, n;
     float k[200];
-    struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
-
-    double inl[M2];
-    double inr[M2];
-
-    struct audio_data audio;
-
+    double inl[M2], inr[M2];
     double ignore = 0.0, sens = 1.0;
     double lowcf = 50.0, highcf = 10000.0;
     double* smooth = smoothDef;
     int smcount = 64, height = 1000, bars = 48, framerate = 60;
     bool stereo = true;
+
+    struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
+    struct audio_data audio;
 
     init_x();
 
@@ -605,13 +601,12 @@ int main()
     // process: calculate cutoff frequencies
     for (n = 0; n <= bars; n++) {
         fc[n] = highcf * pow(lowcf / highcf, double(bars - n) / double(bars));
-        fre[n] = fc[n] / (audio.rate / 2);
         // remember nyquist!, per my calculations this should be rate/2
         // and nyquist freq in M/2 but testing shows it is not...
         // or maybe the nq freq is in M/4
 
-        // lfc stores the lower cut frequency foo each bar in the fft out buffer
-        lcf[n] = fre[n] * (M / 4);
+        // lcf stores the lower cut frequency foo each bar in the fft out buffer
+        lcf[n] = fc[n] * (M / 2) / audio.rate;
         if (n != 0) {
             hcf[n - 1] = lcf[n] - 1;
 
@@ -695,14 +690,7 @@ int main()
         redraw(&audio);
     }
 
-    req.tv_sec = 0;
-    req.tv_nsec = 100; // waiting some time to make sure audio is ready
-    nanosleep(&req, NULL);
-
-    //**telling audio thread to terminate**//
-    audio.terminate = true;
     pthread_join(p_thread, NULL);
-
     close_x();
 
     return 0;
