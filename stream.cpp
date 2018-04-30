@@ -349,31 +349,32 @@ void* input_alsa(void* data)
     snd_pcm_t* handle;
     snd_pcm_uframes_t frames = 256;
     initialize_audio_parameters(&handle, audio, &frames);
-    const int bpf = (audio->format / 8) * CHANNELS_COUNT;
+    const int bpf = (audio->format / 8) * CHANNELS_COUNT; // bytes per frame
     const int size = frames * bpf;
     uint8_t* buffer = new uint8_t[size];
     int n = 0;
-    int loff = (audio->format - 16) / 8;
-    int roff = (audio->format * CHANNELS_COUNT - 16) / 8;
+
+    const int stride = bpf / 2; // half-frame: bytes in a channel, or shorts in a frame
+    const int loff = stride - 2; // Highest 2 bytes in the first half of a frame
+    const int roff = bpf - 2; // Highest 2 bytes in the second half of a frame
 
     while (!audio->terminate) {
         err = snd_pcm_readi(handle, buffer, frames);
 
-        uint8_t* base = buffer;
+        uint16_t* left = (int16_t*)(buffer + loff);
+        uint16_t* right = (int16_t*)(buffer + roff);
         for (unsigned int i = 0; i < frames; i++) {
-            int16_t left = *(int16_t*)(base + loff);
-            int16_t right = *(int16_t*)(base + roff);
-
             if (audio->channels == 1)
-                audio->audio_out_l[n] = ((int32_t)left + (int32_t)right) / 2;
+                audio->audio_out_l[n] = (int32_t(*left) + int32_t(*right)) / 2;
             // stereo storing channels in buffer
             if (audio->channels == 2) {
-                audio->audio_out_l[n] = left;
-                audio->audio_out_r[n] = right;
+                audio->audio_out_l[n] = *left;
+                audio->audio_out_r[n] = *right;
             }
 
             n = (n + 1) % M;
-            base += bpf;
+            left += stride;
+            right += stride;
         }
 
         if (err == -EPIPE) {
