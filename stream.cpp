@@ -102,130 +102,28 @@ private:
     int pos; // Position just after the last added value
 };
 
-/*
-private void doDrawHiFiFFT(Canvas canvas)
-{
-    int k, fbase = mCaptureSize - mCaptureUsed;
-    for (k = 0; k < mCaptureUsed; k++) {
-        re[k] = (left[fbase + k] + right[fbase + k]) * 0.5;
-        im[k] = 0;
-    }
-
-    fftCalc.fft(re, im);
-
-    if (drawMode == 1)
-        canvas.drawRGB(0, 0, 0);
-    Paint p = new Paint();
-
-    int maxFreq = mCaptureUsed;
-    double base = Math.log(Math.pow(2, 1.0 / 12.0));
-
-    double fcoef = Math.pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
-    double minFreq = mSamplingRate / maxFreq;
-    double minNote = Math.log(minFreq * fcoef) / base;
-    double minOctave = Math.floor(minNote / 12.0);
-    fcoef = Math.pow(2, ((4 - minOctave) * 12 + 9) / 12.0) / 440.0; // Shift everything by several octaves
-    double maxNote = Math.log(mSamplingRate * fcoef) / base;
-
-    int baseY = (mCanvasHeight * 3) / 4;
-
-    double kx = mCanvasWidth / maxNote;
-    double ky = mCanvasHeight * 0.5;
-    int lastx = -1;
-    int maxY = 0;
-
-    double maxAmp = 0;
-    int maxR = 0, maxG = 0, maxB = 0;
-    int cRing = 0;
-    double peakN = 0, maxN = 0;
-
-    for (k = 1; k < maxFreq >> 1; k++) {
-        double amp = Math.hypot(re[k], im[k]) / 256.0;
-        double frequency = (k * (double) mSamplingRate) / maxFreq;
-        double note = Math.log(frequency * fcoef) / base; // note = 12 * Octave + Note
-        maxN = note;
-
-        if (drawMode == 1) {
-            int x = (int) Math.round(note * kx);
-            int y = (int) Math.round(amp * ky);
-
-            if (y > maxY)
-                maxY = y;
-
-            if (lastx != x) {
-                double spectre = note - 12.0 * Math.floor(note / 12.0); // spectre is within [0, 12)
-
-                lastx = x;
-                maxY = 0;
-
-                double R = clamp(spectre - 6);
-                double G = clamp(spectre - 10);
-                double B = clamp(spectre - 2);
-
-                double mx = Math.max(Math.max(R, G), B);
-                double mn = Math.min(Math.min(R, G), B);
-                double mm = mx - mn;
-                if (mm == 0) mm = 1;
-
-                R = (R - mn) / mm;
-                G = (G - mn) / mm;
-                B = (B - mn) / mm;
-
-                p.setARGB(255, (int) Math.round(R * 255), (int) Math.round(G * 255), (int) Math.round(B * 255));
-                canvas.drawLine(x, baseY, x, baseY - y, p);
-            }
-        }
-        else if (amp > maxAmp) {
-            maxAmp = amp;
-            double spectre = note - 12.0 * Math.floor(note / 12.0); // spectre is within [0, 12)
-
-            int ring = (96 - (int) Math.floor(spectre * 8)); // [1 .. 96]
-            cRing = ring + 48;
-            if (cRing > 100)
-                cRing -= 100; // [1 .. 100]
-
-            double R = clamp(spectre - 6);
-            double G = clamp(spectre - 10);
-            double B = clamp(spectre - 2);
-
-            double mx = Math.max(Math.max(R, G), B);
-            double mn = Math.min(Math.min(R, G), B);
-            double mm = mx - mn;
-            if (mm == 0) mm = 1;
-
-            maxR = (int) Math.round(255.0 * (R - mn) / mm);
-            maxG = (int) Math.round(255.0 * (G - mn) / mm);
-            maxB = (int) Math.round(255.0 * (B - mn) / mm);
-            peakN = note;
-        }
-    }
-    if (drawMode != 1)
-        canvas.drawRGB(maxR, maxG, maxB);
-    if (cRing != prevColor)
-        setColor(cRing);
-    prevColor = cRing;
-}
-*/
-
 // assuming stereo
 #define CHANNELS_COUNT 2
 #define SAMPLE_RATE 44100
 
 const char* audio_source = "hw:CARD=sndrpigooglevoi,DEV=0";
-constexpr int M = 2048;
-constexpr int HALF_M = M / 2 + 1;
-constexpr int M2 = 2 * HALF_M;
+constexpr int M = 13;
+constexpr int N = 1 << M;
+constexpr int N1 = N / 2;
+constexpr int HALF_N = N / 2 + 1;
+constexpr int N2 = 2 * HALF_N;
 
 struct audio_data {
     int format;
     unsigned int rate;
     int channels;
     bool terminate; // shared variable used to terminate audio thread
-    char error_message[1024];
 
     SlidingWindow<double> left{ 65536 };
     SlidingWindow<double> right{ 65536 };
 };
+
+struct audio_data *g_audio;
 
 static void initialize_audio_parameters(snd_pcm_t** handle, struct audio_data* audio, snd_pcm_uframes_t* frames)
 {
@@ -325,17 +223,25 @@ void* input_alsa(void* data)
 
     return NULL;
 }
-
-void redraw(struct audio_data* audio)
+ 
+double clamp(double val)
 {
-    if (dis == nullptr)
-        return;
-    XClearWindow(dis, win);
+    if (val < 0) val += 12;
+    if (val > 6) val = 12 - val;
+    return val / 6.0;
+}
 
+void redraw(struct audio_data* audio, fftw_complex *out)
+{
+    if (dis != nullptr)
+        XClearWindow(dis, win);
+
+/*
+    // Wave drawing
     int last_x = 0;
     int last_y = 180;
-
     double data[640 * 64];
+
     audio->left.read(data, 640 * 64);
 
     for (int i = 0; i < 640 * 64; i += 64) {
@@ -352,6 +258,90 @@ void redraw(struct audio_data* audio)
         last_x = x;
         last_y = y;
     }
+*/
+
+    int width = 640, height = 360;
+    double base = log(pow(2, 1.0 / 12.0));
+    double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
+    double maxFreq = N;
+    double minFreq = SAMPLE_RATE / maxFreq;
+    double minNote = log(minFreq * fcoef) / base;
+    double minOctave = floor(minNote / 12.0);
+    fcoef = pow(2, ((4 - minOctave) * 12 + 9) / 12.0) / 440.0; // Shift everything by several octaves
+    double maxNote = log(SAMPLE_RATE * fcoef) / base;
+
+    int baseY = (height * 3) / 4;
+
+    double kx = width / maxNote;
+    double ky = height * 0.5;
+    int lastx = -1;
+    int maxY = 0;
+
+    double maxAmp = 0;
+    int maxR = 0, maxG = 0, maxB = 0;
+    int cRing = 0;
+
+    for (int k = 1; k < N1; k++) {
+        double amp = hypot(out[k][0], out[k][1]) / 65536.0;
+        double frequency = (k * (double) SAMPLE_RATE) / maxFreq;
+        double note = log(frequency * fcoef) / base; // note = 12 * Octave + Note
+
+        if (amp > maxAmp) {
+            maxAmp = amp;
+            double spectre = note - 12.0 * floor(note / 12.0); // spectre is within [0, 12)
+
+            int ring = (96 - (int) floor(spectre * 8)); // [1 .. 96]
+            cRing = ring + 48;
+            if (cRing > 100)
+                cRing -= 100; // [1 .. 100]
+
+            double R = clamp(spectre - 6);
+            double G = clamp(spectre - 10);
+            double B = clamp(spectre - 2);
+
+            double mx = std::max(std::max(R, G), B);
+            double mn = std::min(std::min(R, G), B);
+            double mm = mx - mn;
+            if (mm == 0) mm = 1;
+
+            maxR = (int) floor(255.0 * (R - mn) / mm + 0.5);
+            maxG = (int) floor(255.0 * (G - mn) / mm + 0.5);
+            maxB = (int) floor(255.0 * (B - mn) / mm + 0.5);
+        }
+
+        int x = (int) floor(note * kx + 0.5);
+        int y = (int) floor(amp * ky + 0.5);
+
+        if (y > maxY)
+            maxY = y;
+
+        if (dis != nullptr && lastx != x) {
+/*
+            double spectre = note - 12.0 * floor(note / 12.0); // spectre is within [0, 12)
+
+            lastx = x;
+            maxY = 0;
+
+            double R = clamp(spectre - 6);
+            double G = clamp(spectre - 10);
+            double B = clamp(spectre - 2);
+
+            double mx = max(max(R, G), B);
+            double mn = min(min(R, G), B);
+            double mm = mx - mn;
+            if (mm == 0) mm = 1;
+
+            R = (R - mn) / mm;
+            G = (G - mn) / mm;
+            B = (B - mn) / mm;
+
+            p.setARGB(255, (int) round(R * 255), (int) round(G * 255), (int) round(B * 255));
+*/
+            XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
+        }
+    }
+
+    std::cout << maxR << "," << maxG << "," << maxB << std::endl;
 }
 
 // general: handle signals
@@ -359,9 +349,11 @@ void sig_handler(int sig_no)
 {
     if (sig_no == SIGINT) {
         printf("CTRL-C pressed -- goodbye\n");
+        g_audio->terminate = true;
+    } else {
+        signal(sig_no, SIG_DFL);
+        raise(sig_no);
     }
-    signal(sig_no, SIG_DFL);
-    raise(sig_no);
 }
 
 // general: entry point
@@ -371,7 +363,7 @@ int main()
     pthread_t p_thread;
     int sleep = 0;
     int i, n;
-    double inl[M2], inr[M2];
+    double inl[N2], inr[N2];
     int framerate = 60;
     bool stereo = true;
 
@@ -389,11 +381,11 @@ int main()
     }
 
     // fft: planning to rock
-    fftw_complex outl[HALF_M];
-    fftw_plan pl = fftw_plan_dft_r2c_1d(M, inl, outl, FFTW_MEASURE);
+    fftw_complex outl[HALF_N];
+    fftw_plan pl = fftw_plan_dft_r2c_1d(N, inl, outl, FFTW_MEASURE);
 
-    fftw_complex outr[HALF_M];
-    fftw_plan pr = fftw_plan_dft_r2c_1d(M, inr, outr, FFTW_MEASURE);
+    fftw_complex outr[HALF_N];
+    fftw_plan pr = fftw_plan_dft_r2c_1d(N, inr, outr, FFTW_MEASURE);
 
     // input: init
     audio.format = -1;
@@ -401,6 +393,7 @@ int main()
     audio.terminate = false;
     audio.channels = (stereo ? 2 : 1);
 
+    g_audio = &audio;
     pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
 
     n = 0;
@@ -424,16 +417,16 @@ int main()
         // process: populate input buffer and check if input is present
         bool silence = true;
 
-        audio.left.read(inl, M);
+        audio.left.read(inl, N);
         if (stereo)
-            audio.right.read(inr, M);
+            audio.right.read(inr, N);
 
-        for (i = 0; i < M; i++) {
+        for (i = 0; i < N; i++) {
             if (inl[i] || (stereo && inr[i]))
                 silence = false;
         }
 
-        for (i = M; i < M2; i++) {
+        for (i = N; i < N2; i++) {
             inl[i] = 0;
             if (stereo)
                 inr[i] = 0;
@@ -474,7 +467,7 @@ int main()
             }
         }
 
-        redraw(&audio);
+        redraw(&audio, outl);
     }
 
     pthread_join(p_thread, NULL);
