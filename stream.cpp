@@ -231,7 +231,7 @@ double clamp(double val)
     return val / 6.0;
 }
 
-void redraw(struct audio_data* audio, fftw_complex *out)
+void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex *out)
 {
     if (dis != nullptr)
         XClearWindow(dis, win);
@@ -279,7 +279,6 @@ void redraw(struct audio_data* audio, fftw_complex *out)
 
     double maxAmp = 0;
     int maxR = 0, maxG = 0, maxB = 0;
-    int cRing = 0;
 
     for (int k = 1; k < N1; k++) {
         double amp = hypot(out[k][0], out[k][1]) / 65536.0;
@@ -289,11 +288,6 @@ void redraw(struct audio_data* audio, fftw_complex *out)
         if (amp > maxAmp) {
             maxAmp = amp;
             double spectre = note - 12.0 * floor(note / 12.0); // spectre is within [0, 12)
-
-            int ring = (96 - (int) floor(spectre * 8)); // [1 .. 96]
-            cRing = ring + 48;
-            if (cRing > 100)
-                cRing -= 100; // [1 .. 100]
 
             double R = clamp(spectre - 6);
             double G = clamp(spectre - 10);
