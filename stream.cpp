@@ -34,43 +34,19 @@ GC gc;
 
 void init_x()
 {
-    /* get the colors black and white (see section for details) */
-    unsigned long black, white;
-
-    /* use the information from the environment variable DISPLAY
-       to create the X connection:
-     */
     dis = XOpenDisplay((char*)0);
-
     if (dis == nullptr)
         return;
 
     screen = DefaultScreen(dis);
-    black = BlackPixel(dis, screen), /* get color black */
-        white = WhitePixel(dis, screen); /* get color white */
+    unsigned long black = BlackPixel(dis, screen), white = WhitePixel(dis, screen);
 
-    /* once the display is initialized, create the window.
-       This window will be have be 200 pixels across and 300 down.
-       It will have the foreground white and background black
-     */
     win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 640, 360, 5, black, white);
-
-    /* here is where some properties of the window can be set.
-       The third and fourth items indicate the name which appears
-       at the top of the window and the name of the minimized window
-       respectively.
-     */
     XSetStandardProperties(dis, win, "My Window", "HI!", None, NULL, 0, NULL);
-
-    /* this routine determines which types of input are allowed in
-       the input.  see the appropriate section for details...
-     */
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
 
-    /* create the Graphics Context */
     gc = XCreateGC(dis, win, 0, 0);
 
-    /* clear the window and bring it on top of the other windows */
     XClearWindow(dis, win);
     XMapRaised(dis, win);
 };
@@ -79,9 +55,7 @@ void close_x()
 {
     if (dis == nullptr)
         return;
-    /* it is good programming practice to return system resources to the
-       system...
-     */
+
     XFreeGC(dis, gc);
     XDestroyWindow(dis, win);
     XCloseDisplay(dis);
@@ -126,107 +100,6 @@ private:
     T* buffer;
     int size;
     int pos; // Position just after the last added value
-};
-
-class FFT {
-public:
-    FFT(int mm)
-    {
-        n = 1 << m;
-        m = mm;
-
-        // precompute tables
-        cost = new double[n / 2];
-        sint = new double[n / 2];
-
-        for (int i = 0; i < n / 2; i++) {
-            cost[i] = cos(-2 * M_PI * i / n);
-            sint[i] = sin(-2 * M_PI * i / n);
-        }
-
-        // Make a blackman window:
-        window = new double[n];
-        for (int i = 0; i < n; i++)
-            window[i] = 0.42 - 0.5 * cos(2 * M_PI * i / (n - 1)) + 0.08 * cos(4 * M_PI * i / (n - 1));
-    }
-
-    /***************************************************************
-     * fft.c
-     * Douglas L. Jones
-     * University of Illinois at Urbana-Champaign
-     * January 19, 1992
-     * http://cnx.rice.edu/content/m12016/latest/
-     *
-     *   fft: in-place radix-2 DIT DFT of a complex input
-     *
-     *   input:
-     * n: length of FFT: must be a power of two
-     * m: n = 2**m
-     *   input/output
-     * x: double array of length n with real part of data
-     * y: double array of length n with imag part of data
-     *
-     *   Permission to copy and use this program is granted
-     *   as long as this header is included.
-     ****************************************************************/
-    void fft(double* x, double* y)
-    {
-        int i, j, k, n2, a;
-        double c, s, t1, t2;
-
-        // Bit-reverse
-        j = 0;
-        n2 = n / 2;
-        for (i = 1; i < n - 1; i++) {
-            int n1 = n2;
-            while (j >= n1) {
-                j = j - n1;
-                n1 = n1 / 2;
-            }
-
-            j = j + n1;
-
-            if (i < j) {
-                t1 = x[i];
-                x[i] = x[j];
-                x[j] = t1;
-                t1 = y[i];
-                y[i] = y[j];
-                y[j] = t1;
-            }
-        }
-
-        // FFT
-        n2 = 1;
-        for (i = 0; i < m; i++) {
-            int n1 = n2;
-            n2 = n2 + n2;
-            a = 0;
-
-            for (j = 0; j < n1; j++) {
-                c = cost[a];
-                s = sint[a];
-                a += 1 << (m - i - 1);
-
-                for (k = j; k < n; k = k + n2) {
-                    t1 = c * x[k + n1] - s * y[k + n1];
-                    t2 = s * x[k + n1] + c * y[k + n1];
-                    x[k + n1] = x[k] - t1;
-                    y[k + n1] = y[k] - t2;
-                    x[k] = x[k] + t1;
-                    y[k] = y[k] + t2;
-                }
-            }
-        }
-    }
-
-private:
-    int n, m;
-
-    // Lookup tables.  Only need to recompute when size of FFT changes.
-    double* cost;
-    double* sint;
-    double* window;
 };
 
 /*
@@ -334,10 +207,6 @@ private void doDrawHiFiFFT(Canvas canvas)
 }
 */
 
-double smoothDef[64] = { 0.8, 0.8, 1, 1, 0.8, 0.8, 1, 0.8, 0.8, 1, 1, 0.8, 1, 1, 0.8, 0.6, 0.6, 0.7, 0.8, 0.8, 0.8, 0.8,
-    0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8,
-    0.7, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6 };
-
 // assuming stereo
 #define CHANNELS_COUNT 2
 #define SAMPLE_RATE 44100
@@ -427,7 +296,6 @@ void* input_alsa(void* data)
         err = snd_pcm_readi(handle, buffer, frames);
 
         if (err == -EPIPE) {
-            /* EPIPE means overrun */
             fprintf(stderr, "overrun occurred\n");
             snd_pcm_prepare(handle);
         } else if (err < 0) {
@@ -496,55 +364,15 @@ void sig_handler(int sig_no)
     raise(sig_no);
 }
 
-int* separate_freq_bands(fftw_complex out[HALF_M][2], int bars, int lcf[200], int hcf[200], float k[200], int channel,
-    double sens, double ignore)
-{
-    static int fl[200];
-    static int fr[200];
-
-    // process: separate frequency bands
-    for (int o = 0; o < bars; o++) {
-        float peak = 0;
-
-        // process: get peaks
-        for (int i = lcf[o]; i <= hcf[o]; i++) {
-            // getting r of compex
-            peak += hypot(*out[i][0], *out[i][1]); // adding upp band
-        }
-
-        peak /= (hcf[o] - lcf[o] + 1); // getting average
-        float temp = peak * k[o] * sens; // multiplying with k and adjusting to sens settings
-
-        if (temp <= ignore)
-            temp = 0;
-
-        if (channel == 1)
-            fl[o] = temp;
-        else
-            fr[o] = temp;
-    }
-
-    if (channel == 1)
-        return fl;
-    else
-        return fr;
-}
-
 // general: entry point
 int main()
 {
     // general: define variables
     pthread_t p_thread;
-    float fc[200];
-    int lcf[200], hcf[200];
     int sleep = 0;
     int i, n;
-    float k[200];
     double inl[M2], inr[M2];
-    double ignore = 0.0, sens = 1.0;
-    double lowcf = 50.0, highcf = 10000.0;
-    double* smooth = smoothDef;
-    int smcount = 64, height = 1000, bars = 48, framerate = 60;
+    int framerate = 60;
     bool stereo = true;
 
     struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
@@ -561,11 +389,11 @@ int main()
     }
 
     // fft: planning to rock
-    fftw_complex outl[HALF_M][2];
-    fftw_plan pl = fftw_plan_dft_r2c_1d(M, inl, *outl, FFTW_MEASURE);
+    fftw_complex outl[HALF_M];
+    fftw_plan pl = fftw_plan_dft_r2c_1d(M, inl, outl, FFTW_MEASURE);
 
-    fftw_complex outr[HALF_M][2];
-    fftw_plan pr = fftw_plan_dft_r2c_1d(M, inr, *outr, FFTW_MEASURE);
+    fftw_complex outr[HALF_M];
+    fftw_plan pr = fftw_plan_dft_r2c_1d(M, inr, outr, FFTW_MEASURE);
 
     // input: init
     audio.format = -1;
@@ -576,7 +404,6 @@ int main()
     pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
 
     n = 0;
-
     while (audio.format == -1 || audio.rate == 0) {
         req.tv_sec = 0;
         req.tv_nsec = 1000000;
@@ -588,42 +415,6 @@ int main()
             exit(EXIT_FAILURE);
         }
     }
-
-    if (highcf > audio.rate / 2) {
-        fprintf(stderr, "higher cuttoff frequency can't be higher then "
-                        "sample rate / 2");
-        exit(EXIT_FAILURE);
-    }
-
-    if (stereo)
-        bars = bars / 2; // in stereo onle half number of bars per channel
-
-    // process: calculate cutoff frequencies
-    for (n = 0; n <= bars; n++) {
-        fc[n] = highcf * pow(lowcf / highcf, double(bars - n) / double(bars));
-        // remember nyquist!, per my calculations this should be rate/2
-        // and nyquist freq in M/2 but testing shows it is not...
-        // or maybe the nq freq is in M/4
-
-        // lcf stores the lower cut frequency foo each bar in the fft out buffer
-        lcf[n] = fc[n] * (M / 2) / audio.rate;
-        if (n != 0) {
-            hcf[n - 1] = lcf[n] - 1;
-
-            // pushing the spectrum up if the expe function gets "clumped"
-            if (lcf[n] <= lcf[n - 1])
-                lcf[n] = lcf[n - 1] + 1;
-            hcf[n - 1] = lcf[n] - 1;
-        }
-    }
-
-    // process: weigh signal to frequencies
-    double smh = (double)(((double)smcount) / ((double)bars));
-    for (n = 0; n < bars; n++)
-        k[n] = pow(fc[n], 0.85) * ((float)height / (M * 32000)) * smooth[(int)floor(((double)n) * smh)];
-
-    if (stereo)
-        bars = bars * 2;
 
     XEvent event; /* the XEvent declaration !!! */
     KeySym key; /* a dealie-bob to handle KeyPress Events */
@@ -659,12 +450,8 @@ int main()
             if (stereo) {
                 fftw_execute(pl);
                 fftw_execute(pr);
-
-                separate_freq_bands(outl, bars / 2, lcf, hcf, k, 1, sens, ignore);
-                separate_freq_bands(outr, bars / 2, lcf, hcf, k, 2, sens, ignore);
             } else {
                 fftw_execute(pl);
-                separate_freq_bands(outl, bars, lcf, hcf, k, 1, sens, ignore);
             }
         } else { //**if in sleep mode wait and continue**//
             // wait 1 sec, then check sound again.
@@ -675,7 +462,7 @@ int main()
         }
 
         req.tv_sec = 0;
-        req.tv_nsec = 1000000000.0f / framerate;
+        req.tv_nsec = 1e9 / framerate;
         nanosleep(&req, NULL);
 
         while (dis != nullptr && XPending(dis) > 0) {
@@ -692,6 +479,8 @@ int main()
 
     pthread_join(p_thread, NULL);
     close_x();
+    fftw_destroy_plan(pl);
+    fftw_destroy_plan(pr);
 
     return 0;
 }
