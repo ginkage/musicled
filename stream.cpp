@@ -20,6 +20,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 
 #include <X11/Xlib.h>
@@ -41,7 +42,7 @@ void init_x()
     screen = DefaultScreen(dis);
     unsigned long black = BlackPixel(dis, screen), white = WhitePixel(dis, screen);
 
-    win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 640, 360, 5, black, white);
+    win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 648, 360, 5, black, white);
     XSetStandardProperties(dis, win, "My Window", "HI!", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
 
@@ -107,7 +108,7 @@ private:
 #define SAMPLE_RATE 44100
 
 const char* audio_source = "hw:CARD=sndrpigooglevoi,DEV=0";
-constexpr int M = 13;
+constexpr int M = 14;
 constexpr int N = 1 << M;
 constexpr int N1 = N / 2;
 constexpr int HALF_N = N / 2 + 1;
@@ -123,7 +124,7 @@ struct audio_data {
     SlidingWindow<double> right{ 65536 };
 };
 
-struct audio_data *g_audio;
+struct audio_data* g_audio;
 
 static void initialize_audio_parameters(snd_pcm_t** handle, struct audio_data* audio, snd_pcm_uframes_t* frames)
 {
@@ -204,13 +205,30 @@ void* input_alsa(void* data)
             double left_data[frames];
             double right_data[frames];
 
-            int16_t* left = (int16_t*)(buffer + loff);
-            int16_t* right = (int16_t*)(buffer + roff);
-            for (unsigned int i = 0; i < frames; i++) {
-                left_data[i] = *left;
-                right_data[i] = *right;
-                left += stride;
-                right += stride;
+            switch (audio->format) {
+            case 32: {
+                // Use the same scale, but retain higher precision
+                int32_t* left = (int32_t*)buffer;
+                int32_t* right = (int32_t*)(buffer + 4);
+                double scale = 1 / 65536.0;
+                for (unsigned int i = 0; i < frames; i++) {
+                    left_data[i] = *left * scale;
+                    right_data[i] = *right * scale;
+                    left += 2;
+                    right += 2;
+                }
+            } break;
+            default: {
+                // This is already optimal for 16 and 24 bit
+                int16_t* left = (int16_t*)(buffer + loff);
+                int16_t* right = (int16_t*)(buffer + roff);
+                for (unsigned int i = 0; i < frames; i++) {
+                    left_data[i] = *left;
+                    right_data[i] = *right;
+                    left += stride;
+                    right += stride;
+                }
+            } break;
             }
 
             audio->left.write(left_data, frames);
@@ -223,28 +241,30 @@ void* input_alsa(void* data)
 
     return NULL;
 }
- 
+
 double clamp(double val)
 {
-    if (val < 0) val += 12;
-    if (val > 6) val = 12 - val;
+    if (val < 0)
+        val += 12;
+    if (val > 6)
+        val = 12 - val;
     return val / 6.0;
 }
 
-void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex *out)
+void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out)
 {
     if (dis != nullptr)
         XClearWindow(dis, win);
 
-/*
+    /*
     // Wave drawing
     int last_x = 0;
     int last_y = 180;
-    double data[640 * 64];
+    double data[648 * 64];
 
-    audio->left.read(data, 640 * 64);
+    audio->left.read(data, 648 * 64);
 
-    for (int i = 0; i < 640 * 64; i += 64) {
+    for (int i = 0; i < 648 * 64; i += 64) {
         int x = i / 64;
         int avg = 0;
         for (int k = 0; k < 64; k++) {
@@ -258,81 +278,110 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex *out)
         last_x = x;
         last_y = y;
     }
-*/
+    */
 
-    int width = 640, height = 360;
+    int width = 648, height = 360;
     double base = log(pow(2, 1.0 / 12.0));
     double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
+
     double maxFreq = N;
     double minFreq = SAMPLE_RATE / maxFreq;
-    double minNote = log(minFreq * fcoef) / base;
-    double minOctave = floor(minNote / 12.0);
-    fcoef = pow(2, ((4 - minOctave) * 12 + 9) / 12.0) / 440.0; // Shift everything by several octaves
-    double maxNote = log(SAMPLE_RATE * fcoef) / base;
+    // double minNote = log(minFreq * fcoef) / base;
+    // double minOctave = floor(minNote / 12.0);
+    // fcoef = pow(2, ((4 - minOctave) * 12 + 9) / 12.0) / 440.0; // Shift everything by several octaves
+    // double maxNote = log(SAMPLE_RATE * fcoef) / base;
+
+    int curNote = 11;
+    double nextFreq = pow(2, (curNote + 0.5) / 12.0) / fcoef;
+    double prevNote = 0;
+    double prevAmp = 0;
+    double integ = 0;
 
     int baseY = (height * 3) / 4;
 
-    double kx = width / maxNote;
-    double ky = height * 0.5;
+    double kx = width / 108.0; // 12 * 9
+    double ky = height * 0.5 / 65536.0;
     int lastx = -1;
-    int maxY = 0;
 
     double maxAmp = 0;
     int maxR = 0, maxG = 0, maxB = 0;
 
-    for (int k = 1; k < N1; k++) {
-        double amp = hypot(out[k][0], out[k][1]) / 65536.0;
-        double frequency = (k * (double) SAMPLE_RATE) / maxFreq;
+    for (int k = 1; k < N1 && curNote < 120; k++) {
+        double frequency = k * minFreq;
         double note = log(frequency * fcoef) / base; // note = 12 * Octave + Note
+        double amp = hypot(out[k][0], out[k][1]);
 
-        if (amp > maxAmp) {
-            maxAmp = amp;
-            double spectre = note - 12.0 * floor(note / 12.0); // spectre is within [0, 12)
-
-            double R = clamp(spectre - 6);
-            double G = clamp(spectre - 10);
-            double B = clamp(spectre - 2);
-
-            double mx = std::max(std::max(R, G), B);
-            double mn = std::min(std::min(R, G), B);
-            double mm = mx - mn;
-            if (mm == 0) mm = 1;
-
-            maxR = (int) floor(255.0 * (R - mn) / mm + 0.5);
-            maxG = (int) floor(255.0 * (G - mn) / mm + 0.5);
-            maxB = (int) floor(255.0 * (B - mn) / mm + 0.5);
+        if (note > curNote + 0.5) {
+            amp = prevAmp + (amp - prevAmp) * ((curNote + 0.5) - prevNote) / (note - prevNote);
+            note = curNote + 0.5;
+            frequency = nextFreq;
         }
 
-        int x = (int) floor(note * kx + 0.5);
-        int y = (int) floor(amp * ky + 0.5);
+        integ += (note - prevNote) * (prevAmp + amp) / 2;
 
-        if (y > maxY)
-            maxY = y;
+        if (frequency == nextFreq) {
+            if (curNote >= 12) {
+                double R = clamp(curNote - 6);
+                double G = clamp(curNote - 10);
+                double B = clamp(curNote - 2);
 
-        if (dis != nullptr && lastx != x) {
-/*
-            double spectre = note - 12.0 * floor(note / 12.0); // spectre is within [0, 12)
+                if (integ > maxAmp) {
+                    maxAmp = integ;
 
-            lastx = x;
-            maxY = 0;
+                    double mx = std::max(std::max(R, G), B);
+                    double mn = std::min(std::min(R, G), B);
+                    double mm = mx - mn;
+                    if (mm == 0)
+                        mm = 1;
 
-            double R = clamp(spectre - 6);
-            double G = clamp(spectre - 10);
-            double B = clamp(spectre - 2);
+                    maxR = (int)floor(255.0 * (R - mn) / mm + 0.5);
+                    maxG = (int)floor(255.0 * (G - mn) / mm + 0.5);
+                    maxB = (int)floor(255.0 * (B - mn) / mm + 0.5);
+                }
 
-            double mx = max(max(R, G), B);
-            double mn = min(min(R, G), B);
-            double mm = mx - mn;
-            if (mm == 0) mm = 1;
+                if (dis != nullptr) {
+                    int x1 = (int)floor((curNote - 12) * kx + 0.5);
+                    int x2 = (int)floor((curNote - 11) * kx + 0.5);
+                    int y = (int)floor(integ * ky + 0.5);
+                    XDrawLine(dis, win, gc, x1, baseY - y, x2, baseY - y);
+                }
+            }
 
-            R = (R - mn) / mm;
-            G = (G - mn) / mm;
-            B = (B - mn) / mm;
+            curNote++;
+            integ = 0;
+            nextFreq = pow(2, (curNote + 0.5) / 12.0) / fcoef;
+            k--;
+        } else if (dis != nullptr && note >= 11.5) {
+            // note is within [curNote - 0.5, curNote + 0.5)
+            int x = (int)floor((note - 11.5) * kx + 0.5);
+            if (lastx != x) {
+                /*
+                double spectre = note - 12.0 * floor(note / 12.0); // spectre is within [0, 12)
 
-            p.setARGB(255, (int) round(R * 255), (int) round(G * 255), (int) round(B * 255));
-*/
-            XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
+                lastx = x;
+
+                double R = clamp(spectre - 6);
+                double G = clamp(spectre - 10);
+                double B = clamp(spectre - 2);
+
+                double mx = max(max(R, G), B);
+                double mn = min(min(R, G), B);
+                double mm = mx - mn;
+                if (mm == 0) mm = 1;
+
+                R = (R - mn) / mm;
+                G = (G - mn) / mm;
+                B = (B - mn) / mm;
+
+                p.setARGB(255, (int) round(R * 255), (int) round(G * 255), (int) round(B * 255));
+                */
+                int y = (int)floor(amp * ky + 0.5);
+                XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
+            }
         }
+
+        prevNote = note;
+        prevAmp = amp;
     }
 
     std::cout << maxR << "," << maxG << "," << maxB << std::endl;
@@ -407,7 +456,11 @@ int main()
     KeySym key; /* a dealie-bob to handle KeyPress Events */
     char text[255]; /* a char buffer for KeyPress Events */
 
+    long frame_time = 1e9 / framerate;
+
     while (!audio.terminate) {
+        auto start = std::chrono::high_resolution_clock::now();
+
         // process: populate input buffer and check if input is present
         bool silence = true;
 
@@ -448,10 +501,6 @@ int main()
             continue;
         }
 
-        req.tv_sec = 0;
-        req.tv_nsec = 1e9 / framerate;
-        nanosleep(&req, NULL);
-
         while (dis != nullptr && XPending(dis) > 0) {
             XNextEvent(dis, &event);
 
@@ -462,6 +511,17 @@ int main()
         }
 
         redraw(&audio, outl);
+
+        auto finish = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+        // std::cout << duration << " ns\n";
+
+        if (duration < frame_time) {
+            req.tv_sec = 0;
+            req.tv_nsec = frame_time - duration;
+            // std::cout << "sleep for " << req.tv_nsec << " ns\n";
+            nanosleep(&req, NULL);
+        }
     }
 
     pthread_join(p_thread, NULL);
