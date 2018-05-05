@@ -10,7 +10,7 @@ def send(vals):
     global prev_val
 
     if vals != prev_val:
-        #print vals
+        print vals
         connection = httplib.HTTPConnection('192.168.1.222')
         connection.request("GET", "/api/rgb?apikey=CB22BE3289153285&value=" + vals)
         connection.sock.settimeout(0.1)
@@ -18,7 +18,7 @@ def send(vals):
         try:
             response = connection.getresponse()
             response.read()
-            #print response.status, response.reason
+            print response.status, response.reason
         except Exception as e:
             print e
 

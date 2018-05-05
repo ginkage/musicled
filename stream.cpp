@@ -28,6 +28,43 @@
 #include <X11/Xutil.h>
 #include <stdio.h>
 
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+
+int socket_connect(char* host, in_port_t port)
+{
+    struct sockaddr_in addr;
+    addr.sin_port = htons(port);
+    addr.sin_family = AF_INET;
+    inet_aton(host, &addr.sin_addr);
+    int sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP), on;
+    // std:: cout << sock << std::endl;
+    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&on, sizeof(int));
+
+    if (sock == -1) {
+        perror("setsockopt");
+        return 0;
+    }
+
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1) {
+        perror("connect");
+        return 0;
+    }
+    return sock;
+}
+
 Display* dis;
 int screen;
 Window win;
@@ -108,7 +145,7 @@ private:
 #define SAMPLE_RATE 44100
 
 const char* audio_source = "hw:CARD=sndrpigooglevoi,DEV=0";
-constexpr int M = 14;
+constexpr int M = 11;
 constexpr int N = 1 << M;
 constexpr int N1 = N / 2;
 constexpr int HALF_N = N / 2 + 1;
@@ -206,7 +243,7 @@ void* input_alsa(void* data)
             double right_data[frames];
 
             switch (audio->format) {
-            case 32: {
+            case 33: { // One-line flag protection
                 // Use the same scale, but retain higher precision
                 int32_t* left = (int32_t*)buffer;
                 int32_t* right = (int32_t*)(buffer + 4);
@@ -223,7 +260,7 @@ void* input_alsa(void* data)
                 int16_t* left = (int16_t*)(buffer + loff);
                 int16_t* right = (int16_t*)(buffer + roff);
                 for (unsigned int i = 0; i < frames; i++) {
-                    left_data[i] = *left;
+                    left_data[i] = (int(*left) + int(*right)) * 0.5;
                     right_data[i] = *right;
                     left += stride;
                     right += stride;
@@ -251,11 +288,111 @@ double clamp(double val)
     return val / 6.0;
 }
 
-void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out)
-{
-    if (dis != nullptr)
-        XClearWindow(dis, win);
+int prevR, prevG, prevB;
 
+void redrawOne(fftw_complex* out)
+{
+    int width = 648, height = 360;
+    double base = log(pow(2, 1.0 / 12.0));
+    double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
+
+    double maxFreq = N;
+    double minFreq = SAMPLE_RATE / maxFreq;
+    // double minNote = log(minFreq * fcoef) / base;
+    // double minOctave = floor(minNote / 12.0);
+    // fcoef = pow(2, ((4 - minOctave) * 12 + 9) / 12.0) / 440.0; // Shift everything by several octaves
+    double maxNote = log(SAMPLE_RATE * fcoef) / base;
+
+    int baseY = (height * 3) / 4;
+
+    double kx = width / maxNote;
+    double ky = height * 0.5 / 65536.0;
+    int lastx = -1;
+
+    double maxAmp = 0;
+    int maxR = 0, maxG = 0, maxB = 0;
+
+    for (int k = 1; k < N1; k++) {
+        double frequency = k * minFreq;
+        if (frequency < 50)
+            continue;
+        if (frequency > 10000)
+            break;
+
+        double note = log(frequency * fcoef) / base; // note = 12 * Octave + Note
+        double amp = hypot(out[k][0], out[k][1]);
+
+        if (amp > maxAmp) {
+            maxAmp = amp;
+
+            double spectre = fmod(note, 12); // spectre is within [0, 12)
+            double R = clamp(spectre - 6);
+            double G = clamp(spectre - 10);
+            double B = clamp(spectre - 2);
+            double mx = std::max(std::max(R, G), B);
+            double mn = std::min(std::min(R, G), B);
+            double mm = mx - mn;
+            if (mm == 0)
+                mm = 1;
+
+            maxR = (int)floor(255.0 * (R - mn) / mm + 0.5);
+            maxG = (int)floor(255.0 * (G - mn) / mm + 0.5);
+            maxB = (int)floor(255.0 * (B - mn) / mm + 0.5);
+        }
+
+        if (dis != nullptr) {
+            int x = (int)floor(note * kx + 0.5);
+            if (lastx != x) {
+                lastx = x;
+                /*
+                double spectre = note - 12.0 * floor(note / 12.0); // spectre is within [0, 12)
+
+                double R = clamp(spectre - 6);
+                double G = clamp(spectre - 10);
+                double B = clamp(spectre - 2);
+
+                double mx = max(max(R, G), B);
+                double mn = min(min(R, G), B);
+                double mm = mx - mn;
+                if (mm == 0) mm = 1;
+
+                R = (R - mn) / mm;
+                G = (G - mn) / mm;
+                B = (B - mn) / mm;
+
+                p.setARGB(255, (int) round(R * 255), (int) round(G * 255), (int) round(B * 255));
+                */
+                int y = (int)floor(amp * ky + 0.5);
+                XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
+            }
+        }
+    }
+
+    if (prevR != maxR || prevG != maxG || prevB != maxB) {
+        int fd = socket_connect("192.168.1.222", 80);
+        if (fd != 0) {
+            char buffer[1024] = { 0 };
+            int len
+                = sprintf(buffer, "GET /api/rgb?apikey=CB22BE3289153285&value=%d,%d,%d HTTP/1.1\n\n", maxR, maxG, maxB);
+            // std::cout << buffer << std::endl;
+
+            write(fd, buffer, len);
+            if (read(fd, buffer, sizeof(buffer) - 1) != 0) {
+                // std::cout << buffer << std::endl;
+            }
+            // std::cout << maxR << "," << maxG << "," << maxB << std::endl;
+            shutdown(fd, SHUT_RDWR);
+            close(fd);
+        }
+    }
+
+    prevR = maxR;
+    prevG = maxG;
+    prevB = maxB;
+}
+
+void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out, int ii, int amps[12])
+{
     /*
     // Wave drawing
     int last_x = 0;
@@ -284,14 +421,17 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out)
     double base = log(pow(2, 1.0 / 12.0));
     double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
 
-    double maxFreq = N;
+    double maxFreq = 1 << ii;
     double minFreq = SAMPLE_RATE / maxFreq;
     // double minNote = log(minFreq * fcoef) / base;
     // double minOctave = floor(minNote / 12.0);
     // fcoef = pow(2, ((4 - minOctave) * 12 + 9) / 12.0) / 440.0; // Shift everything by several octaves
     // double maxNote = log(SAMPLE_RATE * fcoef) / base;
 
-    int curNote = 11;
+    int startNote = (ii == 14 ? 1 : (ii == 13 ? 3 : 17 - ii)) * 12;
+    int endNote = startNote + (ii > 12 ? 2 : 1) * 12;
+
+    int curNote = startNote - 1;
     double nextFreq = pow(2, (curNote + 0.5) / 12.0) / fcoef;
     double prevNote = 0;
     double prevAmp = 0;
@@ -306,7 +446,7 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out)
     double maxAmp = 0;
     int maxR = 0, maxG = 0, maxB = 0;
 
-    for (int k = 1; k < N1 && curNote < 120; k++) {
+    for (int k = 1; k < N1 && curNote < endNote; k++) {
         double frequency = k * minFreq;
         double note = log(frequency * fcoef) / base; // note = 12 * Octave + Note
         double amp = hypot(out[k][0], out[k][1]);
@@ -317,13 +457,15 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out)
             frequency = nextFreq;
         }
 
-        integ += (note - prevNote) * (prevAmp + amp) / 2;
+        integ += (note - prevNote) * std::max(prevAmp, amp);
 
         if (frequency == nextFreq) {
-            if (curNote >= 12) {
-                double R = clamp(curNote - 6);
-                double G = clamp(curNote - 10);
-                double B = clamp(curNote - 2);
+            if (curNote >= startNote) {
+                double R = clamp(curNote % 12 - 6);
+                double G = clamp(curNote % 12 - 10);
+                double B = clamp(curNote % 12 - 2);
+
+                amps[curNote % 12] += integ;
 
                 if (integ > maxAmp) {
                     maxAmp = integ;
@@ -344,6 +486,11 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out)
                     int x2 = (int)floor((curNote - 11) * kx + 0.5);
                     int y = (int)floor(integ * ky + 0.5);
                     XDrawLine(dis, win, gc, x1, baseY - y, x2, baseY - y);
+
+                    if (curNote % 12 == 0 && curNote > 36) {
+                        int x = (int)floor((curNote - 12) * kx + 0.5);
+                        XDrawLine(dis, win, gc, x, 0, x, height);
+                    }
                 }
             }
 
@@ -351,7 +498,7 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out)
             integ = 0;
             nextFreq = pow(2, (curNote + 0.5) / 12.0) / fcoef;
             k--;
-        } else if (dis != nullptr && note >= 11.5) {
+        } else if (dis != nullptr && note >= startNote - 0.5) {
             // note is within [curNote - 0.5, curNote + 0.5)
             int x = (int)floor((note - 11.5) * kx + 0.5);
             if (lastx != x) {
@@ -376,15 +523,13 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out)
                 p.setARGB(255, (int) round(R * 255), (int) round(G * 255), (int) round(B * 255));
                 */
                 int y = (int)floor(amp * ky + 0.5);
-                XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
+                // XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
             }
         }
 
         prevNote = note;
         prevAmp = amp;
     }
-
-    std::cout << maxR << "," << maxG << "," << maxB << std::endl;
 }
 
 // general: handle signals
@@ -426,7 +571,18 @@ int main()
     // fft: planning to rock
     fftw_complex outl[HALF_N];
     fftw_plan pl = fftw_plan_dft_r2c_1d(N, inl, outl, FFTW_MEASURE);
-
+    /*
+        int total = 0, offset[15];
+        fftw_complex outtl[N];
+        fftw_plan ppl[15];
+        for (i = 14; i >= 8; i--) {
+            int nsamp = N >> (14 - i);
+            int outsize = nsamp / 2 + 1;
+            offset[i] = total;
+            ppl[i] = fftw_plan_dft_r2c_1d(nsamp, inl + (N - nsamp), outtl + total, FFTW_MEASURE);
+            total += outsize;
+        }
+    */
     fftw_complex outr[HALF_N];
     fftw_plan pr = fftw_plan_dft_r2c_1d(N, inr, outr, FFTW_MEASURE);
 
@@ -487,6 +643,10 @@ int main()
         // process: if input was present for the last 5 seconds apply FFT to it
         if (sleep < framerate * 5) {
             // process: execute FFT and sort frequency bands
+            /*
+                        for (i = 14; i >= 8; i--)
+                            fftw_execute(ppl[i]);
+            */
             if (stereo) {
                 fftw_execute(pl);
                 fftw_execute(pr);
@@ -510,11 +670,43 @@ int main()
             }
         }
 
-        redraw(&audio, outl);
+        if (dis != nullptr)
+            XClearWindow(dis, win);
+        redrawOne(outl);
+        /*
+                int amps[12] = { 0 };
+                for (i = 13; i >= 10; i--) {
+                    redraw(&audio, outtl + offset[i], i, amps);
+                }
 
+                int maxAmp = 0;
+                int maxR = 0, maxG = 0, maxB = 0;
+
+                for (i = 0; i < 12; i++) {
+                    double R = clamp(i - 6);
+                    double G = clamp(i - 10);
+                    double B = clamp(i - 2);
+
+                    if (amps[i] > maxAmp) {
+                        maxAmp = amps[i];
+
+                        double mx = std::max(std::max(R, G), B);
+                        double mn = std::min(std::min(R, G), B);
+                        double mm = mx - mn;
+                        if (mm == 0)
+                            mm = 1;
+
+                        maxR = (int)floor(255.0 * (R - mn) / mm + 0.5);
+                        maxG = (int)floor(255.0 * (G - mn) / mm + 0.5);
+                        maxB = (int)floor(255.0 * (B - mn) / mm + 0.5);
+                    }
+                }
+
+                std::cout << maxR << "," << maxG << "," << maxB << std::endl;
+        */
         auto finish = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
-        // std::cout << duration << " ns\n";
+        //        std::cout << duration << " ns\n";
 
         if (duration < frame_time) {
             req.tv_sec = 0;
