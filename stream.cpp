@@ -65,6 +65,34 @@ int socket_connect(char* host, in_port_t port)
     return sock;
 }
 
+class VSync {
+private:
+    std::chrono::_V2::system_clock::time_point start;
+    int64_t frame_time;
+
+public:
+    VSync(int frame_rate)
+    {
+        frame_time = 1e9 / frame_rate;
+        start = std::chrono::high_resolution_clock::now();
+    }
+
+    ~VSync()
+    {
+        std::chrono::_V2::system_clock::time_point finish = std::chrono::high_resolution_clock::now();
+        int64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+        //        std::cout << duration << " ns\n";
+
+        if (duration < frame_time) {
+            struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
+            req.tv_sec = 0;
+            req.tv_nsec = frame_time - duration;
+            // std::cout << "sleep for " << req.tv_nsec << " ns\n";
+            nanosleep(&req, NULL);
+        }
+    }
+};
+
 Display* dis;
 int screen;
 Window win;
@@ -159,6 +187,8 @@ struct audio_data {
 
     SlidingWindow<double> left{ 65536 };
     SlidingWindow<double> right{ 65536 };
+
+    int curR, curG, curB;
 };
 
 struct audio_data* g_audio;
@@ -288,8 +318,6 @@ double clamp(double val)
     return val / 6.0;
 }
 
-int prevR, prevG, prevB;
-
 void redrawOne(fftw_complex* out)
 {
     int width = 648, height = 360;
@@ -298,9 +326,6 @@ void redrawOne(fftw_complex* out)
 
     double maxFreq = N;
     double minFreq = SAMPLE_RATE / maxFreq;
-    // double minNote = log(minFreq * fcoef) / base;
-    // double minOctave = floor(minNote / 12.0);
-    // fcoef = pow(2, ((4 - minOctave) * 12 + 9) / 12.0) / 440.0; // Shift everything by several octaves
     double maxNote = log(SAMPLE_RATE * fcoef) / base;
 
     int baseY = (height * 3) / 4;
@@ -344,51 +369,15 @@ void redrawOne(fftw_complex* out)
             int x = (int)floor(note * kx + 0.5);
             if (lastx != x) {
                 lastx = x;
-                /*
-                double spectre = note - 12.0 * floor(note / 12.0); // spectre is within [0, 12)
-
-                double R = clamp(spectre - 6);
-                double G = clamp(spectre - 10);
-                double B = clamp(spectre - 2);
-
-                double mx = max(max(R, G), B);
-                double mn = min(min(R, G), B);
-                double mm = mx - mn;
-                if (mm == 0) mm = 1;
-
-                R = (R - mn) / mm;
-                G = (G - mn) / mm;
-                B = (B - mn) / mm;
-
-                p.setARGB(255, (int) round(R * 255), (int) round(G * 255), (int) round(B * 255));
-                */
                 int y = (int)floor(amp * ky + 0.5);
                 XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
             }
         }
     }
 
-    if (prevR != maxR || prevG != maxG || prevB != maxB) {
-        int fd = socket_connect("192.168.1.222", 80);
-        if (fd != 0) {
-            char buffer[1024] = { 0 };
-            int len
-                = sprintf(buffer, "GET /api/rgb?apikey=CB22BE3289153285&value=%d,%d,%d HTTP/1.1\n\n", maxR, maxG, maxB);
-            // std::cout << buffer << std::endl;
-
-            write(fd, buffer, len);
-            if (read(fd, buffer, sizeof(buffer) - 1) != 0) {
-                // std::cout << buffer << std::endl;
-            }
-            // std::cout << maxR << "," << maxG << "," << maxB << std::endl;
-            shutdown(fd, SHUT_RDWR);
-            close(fd);
-        }
-    }
-
-    prevR = maxR;
-    prevG = maxG;
-    prevB = maxB;
+    g_audio->curR = maxR;
+    g_audio->curG = maxG;
+    g_audio->curB = maxB;
 }
 
 void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out, int ii, int amps[12])
@@ -532,6 +521,41 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out,
     }
 }
 
+void* socket_send(void* data)
+{
+    struct audio_data* audio = (struct audio_data*)data;
+    int prevR, prevG, prevB;
+
+    while (!audio->terminate) {
+        VSync vsync(60);
+
+        int maxR = audio->curR, maxG = audio->curG, maxB = audio->curB;
+        if (prevR != maxR || prevG != maxG || prevB != maxB) {
+            int fd = socket_connect("192.168.1.222", 80);
+            if (fd != 0) {
+                char buffer[1024] = { 0 };
+                int len = sprintf(
+                    buffer, "GET /api/rgb?apikey=CB22BE3289153285&value=%d,%d,%d HTTP/1.1\n\n", maxR, maxG, maxB);
+                // std::cout << buffer << std::endl;
+
+                write(fd, buffer, len);
+                if (read(fd, buffer, sizeof(buffer) - 1) != 0) {
+                    // std::cout << buffer << std::endl;
+                }
+                shutdown(fd, SHUT_RDWR);
+                close(fd);
+                std::cout << maxR << "," << maxG << "," << maxB << std::endl;
+            }
+
+            prevR = maxR;
+            prevG = maxG;
+            prevB = maxB;
+        }
+    }
+
+    return NULL;
+}
+
 // general: handle signals
 void sig_handler(int sig_no)
 {
@@ -549,6 +573,7 @@ int main()
 {
     // general: define variables
     pthread_t p_thread;
+    pthread_t p_thread2;
     int sleep = 0;
     int i, n;
     double inl[N2], inr[N2];
@@ -594,6 +619,7 @@ int main()
 
     g_audio = &audio;
     pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
+    pthread_create(&p_thread2, NULL, socket_send, (void*)&audio);
 
     n = 0;
     while (audio.format == -1 || audio.rate == 0) {
@@ -612,10 +638,8 @@ int main()
     KeySym key; /* a dealie-bob to handle KeyPress Events */
     char text[255]; /* a char buffer for KeyPress Events */
 
-    long frame_time = 1e9 / framerate;
-
     while (!audio.terminate) {
-        auto start = std::chrono::high_resolution_clock::now();
+        VSync vsync(framerate);
 
         // process: populate input buffer and check if input is present
         bool silence = true;
@@ -704,20 +728,12 @@ int main()
 
                 std::cout << maxR << "," << maxG << "," << maxB << std::endl;
         */
-        auto finish = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
-        //        std::cout << duration << " ns\n";
-
-        if (duration < frame_time) {
-            req.tv_sec = 0;
-            req.tv_nsec = frame_time - duration;
-            // std::cout << "sleep for " << req.tv_nsec << " ns\n";
-            nanosleep(&req, NULL);
-        }
     }
 
-    pthread_join(p_thread, NULL);
     close_x();
+
+    pthread_join(p_thread, NULL);
+    pthread_join(p_thread2, NULL);
     fftw_destroy_plan(pl);
     fftw_destroy_plan(pr);
 
