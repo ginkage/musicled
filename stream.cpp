@@ -339,7 +339,7 @@ void redrawOne(fftw_complex* out)
 
     for (int k = 1; k < N1; k++) {
         double frequency = k * minFreq;
-        if (frequency < 50)
+        if (frequency < 66)
             continue;
         if (frequency > 10000)
             break;
@@ -491,10 +491,10 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out,
             // note is within [curNote - 0.5, curNote + 0.5)
             int x = (int)floor((note - 11.5) * kx + 0.5);
             if (lastx != x) {
+                lastx = x;
+
                 /*
                 double spectre = note - 12.0 * floor(note / 12.0); // spectre is within [0, 12)
-
-                lastx = x;
 
                 double R = clamp(spectre - 6);
                 double G = clamp(spectre - 10);
@@ -512,13 +512,17 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out,
                 p.setARGB(255, (int) round(R * 255), (int) round(G * 255), (int) round(B * 255));
                 */
                 int y = (int)floor(amp * ky + 0.5);
-                // XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
+                XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
             }
         }
 
         prevNote = note;
         prevAmp = amp;
     }
+
+    g_audio->curR = maxR;
+    g_audio->curG = maxG;
+    g_audio->curB = maxB;
 }
 
 void* socket_send(void* data)
@@ -531,7 +535,7 @@ void* socket_send(void* data)
 
         int maxR = audio->curR, maxG = audio->curG, maxB = audio->curB;
         if (prevR != maxR || prevG != maxG || prevB != maxB) {
-            int fd = socket_connect("192.168.1.222", 80);
+            int fd = socket_connect((char *)"192.168.1.222", 80);
             if (fd != 0) {
                 char buffer[1024] = { 0 };
                 int len = sprintf(
@@ -597,16 +601,16 @@ int main()
     fftw_complex outl[HALF_N];
     fftw_plan pl = fftw_plan_dft_r2c_1d(N, inl, outl, FFTW_MEASURE);
     /*
-        int total = 0, offset[15];
-        fftw_complex outtl[N];
-        fftw_plan ppl[15];
-        for (i = 14; i >= 8; i--) {
-            int nsamp = N >> (14 - i);
-            int outsize = nsamp / 2 + 1;
-            offset[i] = total;
-            ppl[i] = fftw_plan_dft_r2c_1d(nsamp, inl + (N - nsamp), outtl + total, FFTW_MEASURE);
-            total += outsize;
-        }
+    int total = 0, offset[15];
+    fftw_complex outtl[N];
+    fftw_plan ppl[15];
+    for (i = 14; i >= 8; i--) {
+        int nsamp = N >> (14 - i);
+        int outsize = nsamp / 2 + 1;
+        offset[i] = total;
+        ppl[i] = fftw_plan_dft_r2c_1d(nsamp, inl + (N - nsamp), outtl + total, FFTW_MEASURE);
+        total += outsize;
+    }
     */
     fftw_complex outr[HALF_N];
     fftw_plan pr = fftw_plan_dft_r2c_1d(N, inr, outr, FFTW_MEASURE);
@@ -668,8 +672,8 @@ int main()
         if (sleep < framerate * 5) {
             // process: execute FFT and sort frequency bands
             /*
-                        for (i = 14; i >= 8; i--)
-                            fftw_execute(ppl[i]);
+            for (i = 14; i >= 8; i--)
+                fftw_execute(ppl[i]);
             */
             if (stereo) {
                 fftw_execute(pl);
@@ -698,35 +702,35 @@ int main()
             XClearWindow(dis, win);
         redrawOne(outl);
         /*
-                int amps[12] = { 0 };
-                for (i = 13; i >= 10; i--) {
-                    redraw(&audio, outtl + offset[i], i, amps);
-                }
+        int amps[12] = { 0 };
+        for (i = 13; i >= 10; i--) {
+            redraw(&audio, outtl + offset[i], i, amps);
+        }
 
-                int maxAmp = 0;
-                int maxR = 0, maxG = 0, maxB = 0;
+        int maxAmp = 0;
+        int maxR = 0, maxG = 0, maxB = 0;
 
-                for (i = 0; i < 12; i++) {
-                    double R = clamp(i - 6);
-                    double G = clamp(i - 10);
-                    double B = clamp(i - 2);
+        for (i = 0; i < 12; i++) {
+            double R = clamp(i - 6);
+            double G = clamp(i - 10);
+            double B = clamp(i - 2);
 
-                    if (amps[i] > maxAmp) {
-                        maxAmp = amps[i];
+            if (amps[i] > maxAmp) {
+                maxAmp = amps[i];
 
-                        double mx = std::max(std::max(R, G), B);
-                        double mn = std::min(std::min(R, G), B);
-                        double mm = mx - mn;
-                        if (mm == 0)
-                            mm = 1;
+                double mx = std::max(std::max(R, G), B);
+                double mn = std::min(std::min(R, G), B);
+                double mm = mx - mn;
+                if (mm == 0)
+                    mm = 1;
 
-                        maxR = (int)floor(255.0 * (R - mn) / mm + 0.5);
-                        maxG = (int)floor(255.0 * (G - mn) / mm + 0.5);
-                        maxB = (int)floor(255.0 * (B - mn) / mm + 0.5);
-                    }
-                }
+                maxR = (int)floor(255.0 * (R - mn) / mm + 0.5);
+                maxG = (int)floor(255.0 * (G - mn) / mm + 0.5);
+                maxB = (int)floor(255.0 * (B - mn) / mm + 0.5);
+            }
+        }
 
-                std::cout << maxR << "," << maxG << "," << maxB << std::endl;
+        std::cout << maxR << "," << maxG << "," << maxB << std::endl;
         */
     }
 
