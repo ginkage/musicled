@@ -172,7 +172,7 @@ private:
 #define CHANNELS_COUNT 2
 #define SAMPLE_RATE 44100
 
-const char* audio_source = "hw:CARD=sndrpigooglevoi,DEV=0";
+const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
 constexpr int M = 11;
 constexpr int N = 1 << M;
 constexpr int N1 = N / 2;
@@ -429,7 +429,7 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out,
     int baseY = (height * 3) / 4;
 
     double kx = width / 108.0; // 12 * 9
-    double ky = height * 0.5 / 65536.0;
+    double ky = height * 0.15 / 65536.0;
     int lastx = -1;
 
     double maxAmp = 0;
