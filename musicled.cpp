@@ -20,6 +20,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <list>
 #include <chrono>
 #include <iostream>
 
@@ -107,14 +108,15 @@ void init_x()
     screen = DefaultScreen(dis);
     unsigned long black = BlackPixel(dis, screen), white = WhitePixel(dis, screen);
 
-    win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 648, 360, 5, black, white);
-    XSetStandardProperties(dis, win, "My Window", "HI!", None, NULL, 0, NULL);
+    win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 648, 360, 0, black, black);
+    XSetStandardProperties(dis, win, "MusicLED", "Music", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
 
     gc = XCreateGC(dis, win, 0, 0);
 
     XClearWindow(dis, win);
     XMapRaised(dis, win);
+    XSetForeground(dis, gc, white);
 };
 
 void close_x()
@@ -179,11 +181,22 @@ constexpr int N1 = N / 2;
 constexpr int HALF_N = N / 2 + 1;
 constexpr int N2 = 2 * HALF_N;
 
+struct espurna {
+    espurna(char *host, char *api) : hostname(host), api_key(api) {}
+
+    char *hostname;
+    char *api_key;
+    char resolved[16];
+    pthread_t p_thread;
+};
+
 struct audio_data {
     int format;
     unsigned int rate;
     int channels;
     bool terminate; // shared variable used to terminate audio thread
+
+    std::list<espurna> strip;
 
     SlidingWindow<double> left{ 65536 };
     SlidingWindow<double> right{ 65536 };
@@ -309,42 +322,61 @@ void* input_alsa(void* data)
     return NULL;
 }
 
-double clamp(double val)
+inline double clamp(double val)
 {
+    static const double div = 1.0 / 6.0;
     if (val < 0)
         val += 12;
     if (val > 6)
         val = 12 - val;
-    return val / 6.0;
+    return val * div;
 }
+
+Pixmap double_buffer = 0;
+unsigned int last_width = -1, last_height = -1;
 
 void redrawOne(fftw_complex* out)
 {
-    int width = 648, height = 360;
+    unsigned int width = 648, height = 360;
+    Window root;
+    int xx, yy;
+    unsigned int bw, dr;
+    XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
+
+    if (width != last_width || height != last_height) {
+        last_width = width;
+        last_height = height;
+        if (double_buffer != 0) {
+            XFreePixmap(dis, double_buffer);
+        }
+        double_buffer = XCreatePixmap(dis, win, width, height, 24);
+    }
+
     double base = log(pow(2, 1.0 / 12.0));
     double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
 
     double maxFreq = N;
     double minFreq = SAMPLE_RATE / maxFreq;
-    double maxNote = log(SAMPLE_RATE * fcoef) / base;
+    double minNote = 34;
+    double maxNote = 110;
 
-    int baseY = (height * 3) / 4;
-
-    double kx = width / maxNote;
+    double kx = width / (maxNote - minNote);
     double ky = height * 0.5 / 65536.0;
     int lastx = -1;
 
     double maxAmp = 0;
     int maxR = 0, maxG = 0, maxB = 0;
 
+    XSetForeground(dis, gc, 0);
+    XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
+
     for (int k = 1; k < N1; k++) {
         double frequency = k * minFreq;
-        if (frequency < 66)
-            continue;
-        if (frequency > 10000)
-            break;
-
         double note = log(frequency * fcoef) / base; // note = 12 * Octave + Note
+        if (note <= 35)
+            continue;
+        if (note > 108)
+            break;
         double amp = hypot(out[k][0], out[k][1]);
 
         if (amp > maxAmp) {
@@ -356,21 +388,33 @@ void redrawOne(fftw_complex* out)
             double B = clamp(spectre - 2);
             double mx = std::max(std::max(R, G), B);
             double mn = std::min(std::min(R, G), B);
-            double mm = mx - mn;
-            if (mm == 0)
-                mm = 1;
+            double mm = 255.0 / (mx - mn ?: 1);
 
-            maxR = (int)floor(255.0 * (R - mn) / mm + 0.5);
-            maxG = (int)floor(255.0 * (G - mn) / mm + 0.5);
-            maxB = (int)floor(255.0 * (B - mn) / mm + 0.5);
+            maxR = (int)((R - mn) * mm + 0.5);
+            maxG = (int)((G - mn) * mm + 0.5);
+            maxB = (int)((B - mn) * mm + 0.5);
         }
 
         if (dis != nullptr) {
-            int x = (int)floor(note * kx + 0.5);
+            int x = (int)((note - minNote) * kx + 0.5);
             if (lastx != x) {
                 lastx = x;
                 int y = (int)floor(amp * ky + 0.5);
-                XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
+
+                double spectre = fmod(note, 12); // spectre is within [0, 12)
+                double R = clamp(spectre - 6);
+                double G = clamp(spectre - 10);
+                double B = clamp(spectre - 2);
+                double mx = std::max(std::max(R, G), B);
+                double mn = std::min(std::min(R, G), B);
+                double mm = 255.0 / (mx - mn ?: 1);
+
+                long red = (long)((R - mn) * mm + 0.5);
+                long green = (long)((G - mn) * mm + 0.5);
+                long blue = (long)((B - mn) * mm + 0.5);
+                unsigned long color = (red << 16) + (green << 8) + blue;
+                XSetForeground(dis, gc, color);
+                XDrawLine(dis, double_buffer, gc, x, height, x, height - y);
             }
         }
     }
@@ -378,6 +422,9 @@ void redrawOne(fftw_complex* out)
     g_audio->curR = maxR;
     g_audio->curG = maxG;
     g_audio->curB = maxB;
+
+    XCopyArea(dis, double_buffer, win, gc, 0, 0, width, height, 0, 0);
+    XFlush(dis);
 }
 
 void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out, int ii, int amps[12])
@@ -527,19 +574,31 @@ void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out,
 
 void* socket_send(void* data)
 {
-    struct audio_data* audio = (struct audio_data*)data;
-    int prevR, prevG, prevB;
+    struct audio_data* audio = g_audio;
+    espurna *strip = (espurna *)data;
 
+    struct hostent *host_entry = gethostbyname(strip->hostname);
+    if (host_entry == nullptr) {
+        audio->terminate = true;
+    } else {
+        char *addr = inet_ntoa(*((struct in_addr*) host_entry->h_addr_list[0])); 
+        strcpy(strip->resolved, addr);
+        std::cout << "Connecting to " << strip->hostname << " as " << strip->resolved << std::endl;
+    }
+
+    int prevR = 0, prevG = 0, prevB = 0;
     while (!audio->terminate) {
         VSync vsync(60);
 
         int maxR = audio->curR, maxG = audio->curG, maxB = audio->curB;
         if (prevR != maxR || prevG != maxG || prevB != maxB) {
-            int fd = socket_connect((char *)"192.168.1.222", 80);
+            int fd = socket_connect(strip->resolved, 80);
             if (fd != 0) {
+//                char msg[1024] = { 0 };
+//                int mlen = sprintf(msg, "apikey=%s&value=%d,%d,%d\n", strip.api_key, maxR, maxG, maxB);
                 char buffer[1024] = { 0 };
-                int len = sprintf(
-                    buffer, "GET /api/rgb?apikey=CB22BE3289153285&value=%d,%d,%d HTTP/1.1\n\n", maxR, maxG, maxB);
+//                int len = sprintf(buffer, "PUT /api/rgb HTTP/1.1\nContent-length: %d\n\n%s", mlen, msg);
+                int len = sprintf(buffer, "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", strip->api_key, maxR, maxG, maxB);
                 // std::cout << buffer << std::endl;
 
                 write(fd, buffer, len);
@@ -548,9 +607,9 @@ void* socket_send(void* data)
                 }
                 shutdown(fd, SHUT_RDWR);
                 close(fd);
-                std::cout << maxR << "," << maxG << "," << maxB << std::endl;
             }
 
+            std::cout << maxR << "," << maxG << "," << maxB << std::endl;
             prevR = maxR;
             prevG = maxG;
             prevB = maxB;
@@ -573,11 +632,10 @@ void sig_handler(int sig_no)
 }
 
 // general: entry point
-int main()
+int main(int argc, char *argv[])
 {
     // general: define variables
     pthread_t p_thread;
-    pthread_t p_thread2;
     int sleep = 0;
     int i, n;
     double inl[N2], inr[N2];
@@ -586,6 +644,15 @@ int main()
 
     struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
     struct audio_data audio;
+
+//    audio.hostname = (char *)"192.168.1.222";
+//    audio.api_key = (char *)"CB22BE3289153285";
+
+    int hn = argc / 2;
+    for (int i = 0; i < hn; i++) {
+        int k = i * 2;
+        audio.strip.push_back(espurna(argv[k + 1], argv[k + 2]));
+    }
 
     init_x();
 
@@ -623,7 +690,10 @@ int main()
 
     g_audio = &audio;
     pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
-    pthread_create(&p_thread2, NULL, socket_send, (void*)&audio);
+
+    for (espurna& strip : audio.strip) {
+        pthread_create(&strip.p_thread, NULL, socket_send, (void*)&strip);
+    }
 
     n = 0;
     while (audio.format == -1 || audio.rate == 0) {
@@ -692,15 +762,21 @@ int main()
         while (dis != nullptr && XPending(dis) > 0) {
             XNextEvent(dis, &event);
 
-            if (event.type == KeyPress && XLookupString(&event.xkey, text, 255, &key, 0) == 1) {
-                if (text[0] == 'q')
+            switch (event.type) {
+            case Expose:
+                //redrawOne(outl);
+                break;
+            case KeyPress:
+                if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
                     audio.terminate = true;
+                break;
             }
         }
 
-        if (dis != nullptr)
-            XClearWindow(dis, win);
-        redrawOne(outl);
+        if (dis != nullptr) {
+            redrawOne(outl);
+        }
+
         /*
         int amps[12] = { 0 };
         for (i = 13; i >= 10; i--) {
@@ -737,7 +813,9 @@ int main()
     close_x();
 
     pthread_join(p_thread, NULL);
-    pthread_join(p_thread2, NULL);
+    for (espurna& strip : audio.strip) {
+        pthread_join(strip.p_thread, NULL);
+    }
     fftw_destroy_plan(pl);
     fftw_destroy_plan(pr);
 
