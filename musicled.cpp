@@ -322,18 +322,34 @@ void* input_alsa(void* data)
     return NULL;
 }
 
-inline double clamp(double val)
-{
-    static const double div = 1.0 / 6.0;
-    if (val < 0)
-        val += 12;
-    if (val > 6)
-        val = 12 - val;
-    return val * div;
-}
-
 Pixmap double_buffer = 0;
 unsigned int last_width = -1, last_height = -1;
+
+struct color {
+    long r, g, b;
+};
+
+inline double clamp(double val)
+{
+    static const double div = 1.0 / 12.0;
+    const double x = val * div;
+    return 12 * fabs(x - floor(x + 0.5));
+}
+
+inline color n2c(double note) {
+    double spectre = fmod(note, 12); // spectre is within [0, 12)
+    double R = clamp(spectre - 6);
+    double G = clamp(spectre - 10);
+    double B = clamp(spectre - 2);
+    const double x = (spectre - 2) * 0.25;
+    double mn = 4 * fabs(x - floor(x + 0.5));
+
+    return color {
+        .r = (long)((R - mn) * 63.75 + 0.5),
+        .g = (long)((G - mn) * 63.75 + 0.5),
+        .b = (long)((B - mn) * 63.75 + 0.5)
+    };
+}
 
 void redrawOne(fftw_complex* out)
 {
@@ -352,9 +368,6 @@ void redrawOne(fftw_complex* out)
         double_buffer = XCreatePixmap(dis, win, width, height, 24);
     }
 
-    double base = log(pow(2, 1.0 / 12.0));
-    double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
-
     double maxFreq = N;
     double minFreq = SAMPLE_RATE / maxFreq;
     double minNote = 34;
@@ -367,12 +380,14 @@ void redrawOne(fftw_complex* out)
     double maxAmp = 0;
     int maxR = 0, maxG = 0, maxB = 0;
 
+    double base = 1.0 / log(pow(2, 1.0 / 12.0));
+    double fcoef = minFreq * pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
+
     XSetForeground(dis, gc, 0);
     XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
 
     for (int k = 1; k < N1; k++) {
-        double frequency = k * minFreq;
-        double note = log(frequency * fcoef) / base; // note = 12 * Octave + Note
+        double note = log(k * fcoef) * base; // note = 12 * Octave + Note
         if (note <= 35)
             continue;
         if (note > 108)
@@ -381,18 +396,10 @@ void redrawOne(fftw_complex* out)
 
         if (amp > maxAmp) {
             maxAmp = amp;
-
-            double spectre = fmod(note, 12); // spectre is within [0, 12)
-            double R = clamp(spectre - 6);
-            double G = clamp(spectre - 10);
-            double B = clamp(spectre - 2);
-            double mx = std::max(std::max(R, G), B);
-            double mn = std::min(std::min(R, G), B);
-            double mm = 255.0 / (mx - mn ?: 1);
-
-            maxR = (int)((R - mn) * mm + 0.5);
-            maxG = (int)((G - mn) * mm + 0.5);
-            maxB = (int)((B - mn) * mm + 0.5);
+            color c = n2c(note);
+            maxR = c.r;
+            maxG = c.g;
+            maxB = c.b;
         }
 
         if (dis != nullptr) {
@@ -400,19 +407,8 @@ void redrawOne(fftw_complex* out)
             if (lastx != x) {
                 lastx = x;
                 int y = (int)floor(amp * ky + 0.5);
-
-                double spectre = fmod(note, 12); // spectre is within [0, 12)
-                double R = clamp(spectre - 6);
-                double G = clamp(spectre - 10);
-                double B = clamp(spectre - 2);
-                double mx = std::max(std::max(R, G), B);
-                double mn = std::min(std::min(R, G), B);
-                double mm = 255.0 / (mx - mn ?: 1);
-
-                long red = (long)((R - mn) * mm + 0.5);
-                long green = (long)((G - mn) * mm + 0.5);
-                long blue = (long)((B - mn) * mm + 0.5);
-                unsigned long color = (red << 16) + (green << 8) + blue;
+                color c = n2c(note);
+                unsigned long color = (c.r << 16) + (c.g << 8) + c.b;
                 XSetForeground(dis, gc, color);
                 XDrawLine(dis, double_buffer, gc, x, height, x, height - y);
             }
