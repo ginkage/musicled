@@ -51,7 +51,6 @@ int socket_connect(char* host, in_port_t port)
     addr.sin_family = AF_INET;
     inet_aton(host, &addr.sin_addr);
     int sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP), on;
-    // std:: cout << sock << std::endl;
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&on, sizeof(int));
 
     if (sock == -1) {
@@ -82,13 +81,11 @@ public:
     {
         std::chrono::_V2::system_clock::time_point finish = std::chrono::high_resolution_clock::now();
         int64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
-        //        std::cout << duration << " ns\n";
 
         if (duration < frame_time) {
-            struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
+            struct timespec req = { .tv_sec = 0, .tv_nsec = 0 };
             req.tv_sec = 0;
             req.tv_nsec = frame_time - duration;
-            // std::cout << "sleep for " << req.tv_nsec << " ns\n";
             nanosleep(&req, NULL);
         }
     }
@@ -337,12 +334,12 @@ inline double clamp(double val)
 }
 
 inline color n2c(double note) {
-    double spectre = fmod(note, 12); // spectre is within [0, 12)
-    double R = clamp(spectre - 6);
-    double G = clamp(spectre - 10);
-    double B = clamp(spectre - 2);
+    const double spectre = fmod(note, 12); // spectre is within [0, 12)
+    const double R = clamp(spectre - 6);
+    const double G = clamp(spectre - 10);
+    const double B = clamp(spectre - 2);
     const double x = (spectre - 2) * 0.25;
-    double mn = 4 * fabs(x - floor(x + 0.5));
+    const double mn = 4 * fabs(x - floor(x + 0.5));
 
     return color {
         .r = (long)((R - mn) * 63.75 + 0.5),
@@ -351,22 +348,12 @@ inline color n2c(double note) {
     };
 }
 
-void redrawOne(fftw_complex* out)
+void redraw(fftw_complex* out)
 {
-    unsigned int width = 648, height = 360;
+    unsigned int width = 648, height = 360, bw, dr;
     Window root;
     int xx, yy;
-    unsigned int bw, dr;
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
-
-    if (width != last_width || height != last_height) {
-        last_width = width;
-        last_height = height;
-        if (double_buffer != 0) {
-            XFreePixmap(dis, double_buffer);
-        }
-        double_buffer = XCreatePixmap(dis, win, width, height, 24);
-    }
 
     double maxFreq = N;
     double minFreq = SAMPLE_RATE / maxFreq;
@@ -377,195 +364,52 @@ void redrawOne(fftw_complex* out)
     double ky = height * 0.5 / 65536.0;
     int lastx = -1;
 
-    double maxAmp = 0;
-    int maxR = 0, maxG = 0, maxB = 0;
-
     double base = 1.0 / log(pow(2, 1.0 / 12.0));
     double fcoef = minFreq * pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
+
+    int minK = ceil(exp(35 / base) / fcoef);
+    int maxK = ceil(exp(108 / base) / fcoef);
+    double maxAmp = 0;
+
+    if (width != last_width || height != last_height) {
+        last_width = width;
+        last_height = height;
+        if (double_buffer != 0) {
+            XFreePixmap(dis, double_buffer);
+        }
+        double_buffer = XCreatePixmap(dis, win, width, height, 24);
+    }
 
     XSetForeground(dis, gc, 0);
     XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
 
-    for (int k = 1; k < N1; k++) {
+    for (int k = minK; k < maxK; k++) {
         double note = log(k * fcoef) * base; // note = 12 * Octave + Note
-        if (note <= 35)
-            continue;
-        if (note > 108)
-            break;
         double amp = hypot(out[k][0], out[k][1]);
 
         if (amp > maxAmp) {
             maxAmp = amp;
-            color c = n2c(note);
-            maxR = c.r;
-            maxG = c.g;
-            maxB = c.b;
+            maxNote = note;
         }
 
-        if (dis != nullptr) {
-            int x = (int)((note - minNote) * kx + 0.5);
-            if (lastx != x) {
-                lastx = x;
-                int y = (int)floor(amp * ky + 0.5);
-                color c = n2c(note);
-                unsigned long color = (c.r << 16) + (c.g << 8) + c.b;
-                XSetForeground(dis, gc, color);
-                XDrawLine(dis, double_buffer, gc, x, height, x, height - y);
-            }
+        int x = (int)((note - minNote) * kx + 0.5);
+        if (lastx != x) {
+            lastx = x;
+            int y = (int)(amp * ky + 0.5);
+            color c = n2c(note);
+            unsigned long color = (c.r << 16) + (c.g << 8) + c.b;
+            XSetForeground(dis, gc, color);
+            XDrawLine(dis, double_buffer, gc, x, height, x, height - y);
         }
     }
 
-    g_audio->curR = maxR;
-    g_audio->curG = maxG;
-    g_audio->curB = maxB;
+    color c = n2c(maxNote);
+    g_audio->curR = c.r;
+    g_audio->curG = c.g;
+    g_audio->curB = c.b;
 
     XCopyArea(dis, double_buffer, win, gc, 0, 0, width, height, 0, 0);
     XFlush(dis);
-}
-
-void redraw(struct audio_data* audio __attribute__((unused)), fftw_complex* out, int ii, int amps[12])
-{
-    /*
-    // Wave drawing
-    int last_x = 0;
-    int last_y = 180;
-    double data[648 * 64];
-
-    audio->left.read(data, 648 * 64);
-
-    for (int i = 0; i < 648 * 64; i += 64) {
-        int x = i / 64;
-        int avg = 0;
-        for (int k = 0; k < 64; k++) {
-            avg += data[i];
-        }
-        avg /= 64;
-        int y = 180 + avg;
-
-        XDrawLine(dis, win, gc, last_x, last_y, x, y);
-
-        last_x = x;
-        last_y = y;
-    }
-    */
-
-    int width = 648, height = 360;
-    double base = log(pow(2, 1.0 / 12.0));
-    double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
-
-    double maxFreq = 1 << ii;
-    double minFreq = SAMPLE_RATE / maxFreq;
-    // double minNote = log(minFreq * fcoef) / base;
-    // double minOctave = floor(minNote / 12.0);
-    // fcoef = pow(2, ((4 - minOctave) * 12 + 9) / 12.0) / 440.0; // Shift everything by several octaves
-    // double maxNote = log(SAMPLE_RATE * fcoef) / base;
-
-    int startNote = (ii == 14 ? 1 : (ii == 13 ? 3 : 17 - ii)) * 12;
-    int endNote = startNote + (ii > 12 ? 2 : 1) * 12;
-
-    int curNote = startNote - 1;
-    double nextFreq = pow(2, (curNote + 0.5) / 12.0) / fcoef;
-    double prevNote = 0;
-    double prevAmp = 0;
-    double integ = 0;
-
-    int baseY = (height * 3) / 4;
-
-    double kx = width / 108.0; // 12 * 9
-    double ky = height * 0.15 / 65536.0;
-    int lastx = -1;
-
-    double maxAmp = 0;
-    int maxR = 0, maxG = 0, maxB = 0;
-
-    for (int k = 1; k < N1 && curNote < endNote; k++) {
-        double frequency = k * minFreq;
-        double note = log(frequency * fcoef) / base; // note = 12 * Octave + Note
-        double amp = hypot(out[k][0], out[k][1]);
-
-        if (note > curNote + 0.5) {
-            amp = prevAmp + (amp - prevAmp) * ((curNote + 0.5) - prevNote) / (note - prevNote);
-            note = curNote + 0.5;
-            frequency = nextFreq;
-        }
-
-        integ += (note - prevNote) * std::max(prevAmp, amp);
-
-        if (frequency == nextFreq) {
-            if (curNote >= startNote) {
-                double R = clamp(curNote % 12 - 6);
-                double G = clamp(curNote % 12 - 10);
-                double B = clamp(curNote % 12 - 2);
-
-                amps[curNote % 12] += integ;
-
-                if (integ > maxAmp) {
-                    maxAmp = integ;
-
-                    double mx = std::max(std::max(R, G), B);
-                    double mn = std::min(std::min(R, G), B);
-                    double mm = mx - mn;
-                    if (mm == 0)
-                        mm = 1;
-
-                    maxR = (int)floor(255.0 * (R - mn) / mm + 0.5);
-                    maxG = (int)floor(255.0 * (G - mn) / mm + 0.5);
-                    maxB = (int)floor(255.0 * (B - mn) / mm + 0.5);
-                }
-
-                if (dis != nullptr) {
-                    int x1 = (int)floor((curNote - 12) * kx + 0.5);
-                    int x2 = (int)floor((curNote - 11) * kx + 0.5);
-                    int y = (int)floor(integ * ky + 0.5);
-                    XDrawLine(dis, win, gc, x1, baseY - y, x2, baseY - y);
-
-                    if (curNote % 12 == 0 && curNote > 36) {
-                        int x = (int)floor((curNote - 12) * kx + 0.5);
-                        XDrawLine(dis, win, gc, x, 0, x, height);
-                    }
-                }
-            }
-
-            curNote++;
-            integ = 0;
-            nextFreq = pow(2, (curNote + 0.5) / 12.0) / fcoef;
-            k--;
-        } else if (dis != nullptr && note >= startNote - 0.5) {
-            // note is within [curNote - 0.5, curNote + 0.5)
-            int x = (int)floor((note - 11.5) * kx + 0.5);
-            if (lastx != x) {
-                lastx = x;
-
-                /*
-                double spectre = note - 12.0 * floor(note / 12.0); // spectre is within [0, 12)
-
-                double R = clamp(spectre - 6);
-                double G = clamp(spectre - 10);
-                double B = clamp(spectre - 2);
-
-                double mx = max(max(R, G), B);
-                double mn = min(min(R, G), B);
-                double mm = mx - mn;
-                if (mm == 0) mm = 1;
-
-                R = (R - mn) / mm;
-                G = (G - mn) / mm;
-                B = (B - mn) / mm;
-
-                p.setARGB(255, (int) round(R * 255), (int) round(G * 255), (int) round(B * 255));
-                */
-                int y = (int)floor(amp * ky + 0.5);
-                XDrawLine(dis, win, gc, x, baseY, x, baseY - y);
-            }
-        }
-
-        prevNote = note;
-        prevAmp = amp;
-    }
-
-    g_audio->curR = maxR;
-    g_audio->curG = maxG;
-    g_audio->curB = maxB;
 }
 
 void* socket_send(void* data)
@@ -590,10 +434,7 @@ void* socket_send(void* data)
         if (prevR != maxR || prevG != maxG || prevB != maxB) {
             int fd = socket_connect(strip->resolved, 80);
             if (fd != 0) {
-//                char msg[1024] = { 0 };
-//                int mlen = sprintf(msg, "apikey=%s&value=%d,%d,%d\n", strip.api_key, maxR, maxG, maxB);
                 char buffer[1024] = { 0 };
-//                int len = sprintf(buffer, "PUT /api/rgb HTTP/1.1\nContent-length: %d\n\n%s", mlen, msg);
                 int len = sprintf(buffer, "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", strip->api_key, maxR, maxG, maxB);
                 // std::cout << buffer << std::endl;
 
@@ -663,18 +504,6 @@ int main(int argc, char *argv[])
     // fft: planning to rock
     fftw_complex outl[HALF_N];
     fftw_plan pl = fftw_plan_dft_r2c_1d(N, inl, outl, FFTW_MEASURE);
-    /*
-    int total = 0, offset[15];
-    fftw_complex outtl[N];
-    fftw_plan ppl[15];
-    for (i = 14; i >= 8; i--) {
-        int nsamp = N >> (14 - i);
-        int outsize = nsamp / 2 + 1;
-        offset[i] = total;
-        ppl[i] = fftw_plan_dft_r2c_1d(nsamp, inl + (N - nsamp), outtl + total, FFTW_MEASURE);
-        total += outsize;
-    }
-    */
     fftw_complex outr[HALF_N];
     fftw_plan pr = fftw_plan_dft_r2c_1d(N, inr, outr, FFTW_MEASURE);
 
@@ -737,10 +566,6 @@ int main(int argc, char *argv[])
         // process: if input was present for the last 5 seconds apply FFT to it
         if (sleep < framerate * 5) {
             // process: execute FFT and sort frequency bands
-            /*
-            for (i = 14; i >= 8; i--)
-                fftw_execute(ppl[i]);
-            */
             if (stereo) {
                 fftw_execute(pl);
                 fftw_execute(pr);
@@ -760,7 +585,7 @@ int main(int argc, char *argv[])
 
             switch (event.type) {
             case Expose:
-                //redrawOne(outl);
+                //redraw(outl);
                 break;
             case KeyPress:
                 if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
@@ -770,40 +595,8 @@ int main(int argc, char *argv[])
         }
 
         if (dis != nullptr) {
-            redrawOne(outl);
+            redraw(outl);
         }
-
-        /*
-        int amps[12] = { 0 };
-        for (i = 13; i >= 10; i--) {
-            redraw(&audio, outtl + offset[i], i, amps);
-        }
-
-        int maxAmp = 0;
-        int maxR = 0, maxG = 0, maxB = 0;
-
-        for (i = 0; i < 12; i++) {
-            double R = clamp(i - 6);
-            double G = clamp(i - 10);
-            double B = clamp(i - 2);
-
-            if (amps[i] > maxAmp) {
-                maxAmp = amps[i];
-
-                double mx = std::max(std::max(R, G), B);
-                double mn = std::min(std::min(R, G), B);
-                double mm = mx - mn;
-                if (mm == 0)
-                    mm = 1;
-
-                maxR = (int)floor(255.0 * (R - mn) / mm + 0.5);
-                maxG = (int)floor(255.0 * (G - mn) / mm + 0.5);
-                maxB = (int)floor(255.0 * (B - mn) / mm + 0.5);
-            }
-        }
-
-        std::cout << maxR << "," << maxG << "," << maxB << std::endl;
-        */
     }
 
     close_x();
