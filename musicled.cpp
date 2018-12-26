@@ -324,6 +324,7 @@ unsigned int last_width = -1, last_height = -1;
 
 struct color {
     long r, g, b;
+    unsigned long i;
 };
 
 inline double clamp(double val)
@@ -341,19 +342,44 @@ inline color n2c(double note) {
     const double x = (spectre - 2) * 0.25;
     const double mn = 4 * fabs(x - floor(x + 0.5));
 
-    return color {
-        .r = (long)((R - mn) * 63.75 + 0.5),
-        .g = (long)((G - mn) * 63.75 + 0.5),
-        .b = (long)((B - mn) * 63.75 + 0.5)
-    };
+    color c;
+    c.r = (long)((R - mn) * 63.75 + 0.5);
+    c.g = (long)((G - mn) * 63.75 + 0.5);
+    c.b = (long)((B - mn) * 63.75 + 0.5);
+    c.i = (c.r << 16) + (c.g << 8) + c.b;
+    return c;
 }
 
-void redraw(fftw_complex* out)
+void precalc(color *out)
+{
+    double maxFreq = N;
+    double minFreq = SAMPLE_RATE / maxFreq;
+    double base = 1.0 / log(pow(2, 1.0 / 12.0));
+    double fcoef = minFreq * pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
+
+    for (int k = 1; k < N1; k++) {
+        out[k] = n2c(log(k * fcoef) * base); // note = 12 * Octave + Note
+    }
+}
+
+void redraw(fftw_complex* out, color* col)
 {
     unsigned int width = 648, height = 360, bw, dr;
     Window root;
     int xx, yy;
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
+
+    if (width != last_width || height != last_height) {
+        last_width = width;
+        last_height = height;
+        if (double_buffer != 0) {
+            XFreePixmap(dis, double_buffer);
+        }
+        double_buffer = XCreatePixmap(dis, win, width, height, 24);
+    }
+
+    XSetForeground(dis, gc, 0);
+    XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
 
     double maxFreq = N;
     double minFreq = SAMPLE_RATE / maxFreq;
@@ -370,18 +396,7 @@ void redraw(fftw_complex* out)
     int minK = ceil(exp(35 / base) / fcoef);
     int maxK = ceil(exp(108 / base) / fcoef);
     double maxAmp = 0;
-
-    if (width != last_width || height != last_height) {
-        last_width = width;
-        last_height = height;
-        if (double_buffer != 0) {
-            XFreePixmap(dis, double_buffer);
-        }
-        double_buffer = XCreatePixmap(dis, win, width, height, 24);
-    }
-
-    XSetForeground(dis, gc, 0);
-    XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
+    color maxC;
 
     for (int k = minK; k < maxK; k++) {
         double note = log(k * fcoef) * base; // note = 12 * Octave + Note
@@ -389,24 +404,21 @@ void redraw(fftw_complex* out)
 
         if (amp > maxAmp) {
             maxAmp = amp;
-            maxNote = note;
+            maxC = col[k];
         }
 
         int x = (int)((note - minNote) * kx + 0.5);
         if (lastx != x) {
             lastx = x;
             int y = (int)(amp * ky + 0.5);
-            color c = n2c(note);
-            unsigned long color = (c.r << 16) + (c.g << 8) + c.b;
-            XSetForeground(dis, gc, color);
+            XSetForeground(dis, gc, col[k].i);
             XDrawLine(dis, double_buffer, gc, x, height, x, height - y);
         }
     }
 
-    color c = n2c(maxNote);
-    g_audio->curR = c.r;
-    g_audio->curG = c.g;
-    g_audio->curB = c.b;
+    g_audio->curR = maxC.r;
+    g_audio->curG = maxC.g;
+    g_audio->curB = maxC.b;
 
     XCopyArea(dis, double_buffer, win, gc, 0, 0, width, height, 0, 0);
     XFlush(dis);
@@ -507,6 +519,9 @@ int main(int argc, char *argv[])
     fftw_complex outr[HALF_N];
     fftw_plan pr = fftw_plan_dft_r2c_1d(N, inr, outr, FFTW_MEASURE);
 
+    color colors[HALF_N];
+    precalc(colors);
+
     // input: init
     audio.format = -1;
     audio.rate = 0;
@@ -585,7 +600,7 @@ int main(int argc, char *argv[])
 
             switch (event.type) {
             case Expose:
-                //redraw(outl);
+                //redraw(outl, colors);
                 break;
             case KeyPress:
                 if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
@@ -595,7 +610,7 @@ int main(int argc, char *argv[])
         }
 
         if (dis != nullptr) {
-            redraw(outl);
+            redraw(outl, colors);
         }
     }
 
