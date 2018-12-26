@@ -325,6 +325,7 @@ unsigned int last_width = -1, last_height = -1;
 struct color {
     long r, g, b;
     unsigned long i;
+    int x;
 };
 
 inline double clamp(double val)
@@ -369,18 +370,6 @@ void redraw(fftw_complex* out, color* col)
     int xx, yy;
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
 
-    if (width != last_width || height != last_height) {
-        last_width = width;
-        last_height = height;
-        if (double_buffer != 0) {
-            XFreePixmap(dis, double_buffer);
-        }
-        double_buffer = XCreatePixmap(dis, win, width, height, 24);
-    }
-
-    XSetForeground(dis, gc, 0);
-    XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
-
     double maxFreq = N;
     double minFreq = SAMPLE_RATE / maxFreq;
     double minNote = 34;
@@ -393,21 +382,36 @@ void redraw(fftw_complex* out, color* col)
     double base = 1.0 / log(pow(2, 1.0 / 12.0));
     double fcoef = minFreq * pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
 
+    if (width != last_width || height != last_height) {
+        last_width = width;
+        last_height = height;
+        if (double_buffer != 0) {
+            XFreePixmap(dis, double_buffer);
+        }
+        double_buffer = XCreatePixmap(dis, win, width, height, 24);
+
+        for (int k = 1; k < N1; k++) {
+            double note = log(k * fcoef) * base; // note = 12 * Octave + Note
+            col[k].x = (int)((note - minNote) * kx + 0.5);
+        }
+    }
+
+    XSetForeground(dis, gc, 0);
+    XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
+
     int minK = ceil(exp(35 / base) / fcoef);
     int maxK = ceil(exp(108 / base) / fcoef);
     double maxAmp = 0;
     color maxC;
 
     for (int k = minK; k < maxK; k++) {
-        double note = log(k * fcoef) * base; // note = 12 * Octave + Note
         double amp = hypot(out[k][0], out[k][1]);
-
         if (amp > maxAmp) {
             maxAmp = amp;
             maxC = col[k];
         }
 
-        int x = (int)((note - minNote) * kx + 0.5);
+        int x = col[k].x;
         if (lastx != x) {
             lastx = x;
             int y = (int)(amp * ky + 0.5);
