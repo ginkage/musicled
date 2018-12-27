@@ -187,6 +187,10 @@ struct espurna {
     pthread_t p_thread;
 };
 
+struct color {
+    int r, g, b;
+};
+
 struct audio_data {
     int format;
     unsigned int rate;
@@ -198,7 +202,7 @@ struct audio_data {
     SlidingWindow<double> left{ 65536 };
     SlidingWindow<double> right{ 65536 };
 
-    int curR, curG, curB;
+    color curColor;
 };
 
 struct audio_data* g_audio;
@@ -322,48 +326,52 @@ void* input_alsa(void* data)
 Pixmap double_buffer = 0;
 unsigned int last_width = -1, last_height = -1;
 
-struct color {
-    long r, g, b;
-    unsigned long i;
+struct freq_data {
+    color c;
+    unsigned long ic;
+    double note;
     int x;
 };
 
 inline double clamp(double val)
 {
-    static const double div = 1.0 / 12.0;
-    const double x = val * div;
+    double x = val / 12.0;
     return 12 * fabs(x - floor(x + 0.5));
 }
 
-inline color n2c(double note) {
-    const double spectre = fmod(note, 12); // spectre is within [0, 12)
-    const double R = clamp(spectre - 6);
-    const double G = clamp(spectre - 10);
-    const double B = clamp(spectre - 2);
-    const double x = (spectre - 2) * 0.25;
-    const double mn = 4 * fabs(x - floor(x + 0.5));
-
-    color c;
-    c.r = (long)((R - mn) * 63.75 + 0.5);
-    c.g = (long)((G - mn) * 63.75 + 0.5);
-    c.b = (long)((B - mn) * 63.75 + 0.5);
-    c.i = (c.r << 16) + (c.g << 8) + c.b;
-    return c;
-}
-
-void precalc(color *out)
+void precalc(freq_data *out)
 {
     double maxFreq = N;
     double minFreq = SAMPLE_RATE / maxFreq;
-    double base = 1.0 / log(pow(2, 1.0 / 12.0));
-    double fcoef = minFreq * pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
+    double base = log(pow(2, 1.0 / 12.0));
+    double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
 
     for (int k = 1; k < N1; k++) {
-        out[k] = n2c(log(k * fcoef) * base); // note = 12 * Octave + Note
+        double frequency = k * minFreq;
+        double note = log(frequency * fcoef) / base; // note = 12 * Octave + Note
+        double spectre = fmod(note, 12); // spectre is within [0, 12)
+        double R = clamp(spectre - 6);
+        double G = clamp(spectre - 10);
+        double B = clamp(spectre - 2);
+        double x = (spectre - 2) * 0.25;
+        double mn = 4 * fabs(x - floor(x + 0.5));
+
+        color c = {
+            .r = (int)((R - mn) * 63.75 + 0.5),
+            .g = (int)((G - mn) * 63.75 + 0.5),
+            .b = (int)((B - mn) * 63.75 + 0.5)
+        };
+
+        freq_data f;
+        f.c = c;
+        f.note = note;
+        f.ic = (((long)c.r) << 16) + (((long)c.g) << 8) + ((long)c.b);
+
+        out[k] = f;
     }
 }
 
-void redraw(fftw_complex* out, color* col)
+void redraw(fftw_complex* out, freq_data* freq)
 {
     unsigned int width = 648, height = 360, bw, dr;
     Window root;
@@ -377,10 +385,6 @@ void redraw(fftw_complex* out, color* col)
 
     double kx = width / (maxNote - minNote);
     double ky = height * 0.5 / 65536.0;
-    int lastx = -1;
-
-    double base = 1.0 / log(pow(2, 1.0 / 12.0));
-    double fcoef = minFreq * pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
 
     if (width != last_width || height != last_height) {
         last_width = width;
@@ -391,38 +395,38 @@ void redraw(fftw_complex* out, color* col)
         double_buffer = XCreatePixmap(dis, win, width, height, 24);
 
         for (int k = 1; k < N1; k++) {
-            double note = log(k * fcoef) * base; // note = 12 * Octave + Note
-            col[k].x = (int)((note - minNote) * kx + 0.5);
+            freq[k].x = (int)((freq[k].note - minNote) * kx + 0.5);
         }
     }
 
     XSetForeground(dis, gc, 0);
     XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
 
-    int minK = ceil(exp(35 / base) / fcoef);
-    int maxK = ceil(exp(108 / base) / fcoef);
+    double base = log(pow(2, 1.0 / 12.0));
+    double fcoef = minFreq * pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
+    int minK = ceil(exp(35 * base) / fcoef);
+    int maxK = ceil(exp(108 * base) / fcoef);
     double maxAmp = 0;
-    color maxC;
+    int maxF;
+    int lastx = -1;
 
     for (int k = minK; k < maxK; k++) {
         double amp = hypot(out[k][0], out[k][1]);
         if (amp > maxAmp) {
             maxAmp = amp;
-            maxC = col[k];
+            maxF = k;
         }
 
-        int x = col[k].x;
+        int x = freq[k].x;
         if (lastx != x) {
             lastx = x;
             int y = (int)(amp * ky + 0.5);
-            XSetForeground(dis, gc, col[k].i);
+            XSetForeground(dis, gc, freq[k].ic);
             XDrawLine(dis, double_buffer, gc, x, height, x, height - y);
         }
     }
 
-    g_audio->curR = maxC.r;
-    g_audio->curG = maxC.g;
-    g_audio->curB = maxC.b;
+    g_audio->curColor = freq[maxF].c;
 
     XCopyArea(dis, double_buffer, win, gc, 0, 0, width, height, 0, 0);
     XFlush(dis);
@@ -446,7 +450,7 @@ void* socket_send(void* data)
     while (!audio->terminate) {
         VSync vsync(60);
 
-        int maxR = audio->curR, maxG = audio->curG, maxB = audio->curB;
+        int maxR = audio->curColor.r, maxG = audio->curColor.g, maxB = audio->curColor.b;
         if (prevR != maxR || prevG != maxG || prevB != maxB) {
             int fd = socket_connect(strip->resolved, 80);
             if (fd != 0) {
@@ -523,8 +527,8 @@ int main(int argc, char *argv[])
     fftw_complex outr[HALF_N];
     fftw_plan pr = fftw_plan_dft_r2c_1d(N, inr, outr, FFTW_MEASURE);
 
-    color colors[HALF_N];
-    precalc(colors);
+    freq_data freq[HALF_N];
+    precalc(freq);
 
     // input: init
     audio.format = -1;
@@ -604,7 +608,7 @@ int main(int argc, char *argv[])
 
             switch (event.type) {
             case Expose:
-                //redraw(outl, colors);
+                //redraw(outl, freq);
                 break;
             case KeyPress:
                 if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
@@ -614,7 +618,7 @@ int main(int argc, char *argv[])
         }
 
         if (dis != nullptr) {
-            redraw(outl, colors);
+            redraw(outl, freq);
         }
     }
 
