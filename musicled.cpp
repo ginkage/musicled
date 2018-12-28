@@ -439,6 +439,7 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* out, freq_data* 
     double maxAmp = 0;
     int maxF = 0;
     int lastx = -1;
+    double prevAmp = 0;
 
     for (int k = minK; k < maxK; k++) {
         double amp = hypot(out[k][0], out[k][1]);
@@ -447,12 +448,14 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* out, freq_data* 
             maxF = k;
         }
 
+        prevAmp = std::max(prevAmp, amp);
         int x = freq[k].x;
-        if (lastx != x) {
-            lastx = x;
-            int y = (int)(amp * ky + 0.5);
+        if (lastx < x) {
+            lastx = x + 3;
+            int y = (int)(prevAmp * ky + 0.5);
+            prevAmp = 0;
             XSetForeground(dis, gc, freq[k].ic);
-            XDrawLine(dis, double_buffer, gc, x, height, x, height - y);
+            XDrawLine(dis, double_buffer, gc, x, height - y, x, height);
         }
     }
 
@@ -576,7 +579,18 @@ int main(int argc, char* argv[])
     KeySym key; /* a dealie-bob to handle KeyPress Events */
     char text[255]; /* a char buffer for KeyPress Events */
 
+    int frames = 0;
+    std::chrono::_V2::system_clock::time_point start = std::chrono::high_resolution_clock::now();
+
     while (!audio.terminate) {
+        if (frames > framerate) {
+            std::chrono::_V2::system_clock::time_point finish = std::chrono::high_resolution_clock::now();
+            int64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+            std::cout << (framerate * 1.0e9 / duration) << " fps" << std::endl;
+            frames = 0;
+            start = finish;
+        }
+
         VSync vsync(framerate);
 
         audio.left.read(inl, N);
@@ -605,6 +619,8 @@ int main(int argc, char* argv[])
 
             redraw(&audio, &video, outl, freq);
         }
+
+        frames++;
     }
 
     close_x(&video);
