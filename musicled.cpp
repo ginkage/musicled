@@ -328,30 +328,14 @@ void* input_alsa(void* data)
             double left_data[frames];
             double right_data[frames];
 
-            switch (audio->format) {
-            case 33: { // One-line flag protection
-                // Use the same scale, but retain higher precision
-                int32_t* left = (int32_t*)buffer;
-                int32_t* right = (int32_t*)(buffer + 4);
-                double scale = 1 / 65536.0;
-                for (int i = 0; i < frames; i++) {
-                    left_data[i] = *left * scale;
-                    right_data[i] = *right * scale;
-                    left += 2;
-                    right += 2;
-                }
-            } break;
-            default: {
-                // This is already optimal for 16 and 24 bit
-                int16_t* left = (int16_t*)(buffer + loff);
-                int16_t* right = (int16_t*)(buffer + roff);
-                for (int i = 0; i < frames; i++) {
-                    left_data[i] = *left; //(int(*left) + int(*right)) * 0.5;
-                    right_data[i] = *right;
-                    left += stride;
-                    right += stride;
-                }
-            } break;
+            // For 32 and 24 bit, we'll drop extra precision
+            int16_t* left = (int16_t*)(buffer + loff);
+            int16_t* right = (int16_t*)(buffer + roff);
+            for (int i = 0; i < frames; i++) {
+                left_data[i] = *left;
+                right_data[i] = *right;
+                left += stride;
+                right += stride;
             }
 
             audio->left.write(left_data, frames);
