@@ -46,7 +46,7 @@
 
 int socket_connect(char* host, in_port_t port)
 {
-    struct sockaddr_in addr;
+    sockaddr_in addr;
     addr.sin_port = htons(port);
     addr.sin_family = AF_INET;
     inet_aton(host, &addr.sin_addr);
@@ -58,7 +58,7 @@ int socket_connect(char* host, in_port_t port)
         return 0;
     }
 
-    if (connect(sock, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1) {
+    if (connect(sock, (sockaddr*)&addr, sizeof(sockaddr_in)) == -1) {
         perror("connect");
         return 0;
     }
@@ -83,7 +83,7 @@ public:
         int64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
 
         if (duration < frame_time) {
-            struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
+            timespec req = {.tv_sec = 0, .tv_nsec = 0 };
             req.tv_sec = 0;
             req.tv_nsec = frame_time - duration;
             nanosleep(&req, NULL);
@@ -209,9 +209,9 @@ struct audio_data {
     color curColor;
 };
 
-struct audio_data* g_audio;
+audio_data* g_audio;
 
-static void initialize_audio_parameters(snd_pcm_t** handle, struct audio_data* audio, snd_pcm_uframes_t* frames)
+static void initialize_audio_parameters(snd_pcm_t** handle, audio_data* audio, snd_pcm_uframes_t* frames)
 {
     // alsa: open device to capture audio
     int err = snd_pcm_open(handle, audio_source, SND_PCM_STREAM_CAPTURE, 0);
@@ -264,7 +264,7 @@ static void initialize_audio_parameters(snd_pcm_t** handle, struct audio_data* a
 void* input_alsa(void* data)
 {
     int err;
-    struct audio_data* audio = (struct audio_data*)data;
+    audio_data* audio = (audio_data*)data;
     snd_pcm_t* handle;
     snd_pcm_uframes_t frames = 256;
     initialize_audio_parameters(&handle, audio, &frames);
@@ -285,7 +285,7 @@ void* input_alsa(void* data)
         } else if (err < 0) {
             fprintf(stderr, "error from read: %s\n", snd_strerror(err));
         } else if (err != (int)frames) {
-            fprintf(stderr, "short read, read %d %d frames\n", err, (int)frames);
+            fprintf(stderr, "short read, read %d of %d frames\n", err, (int)frames);
         } else {
             double left_data[frames];
             double right_data[frames];
@@ -362,8 +362,8 @@ void precalc(freq_data* out)
 
         color c;
         c.r = (int)((R - mn) * 63.75 + 0.5);
-       	c.g = (int)((G - mn) * 63.75 + 0.5);
-	c.b = (int)((B - mn) * 63.75 + 0.5);
+        c.g = (int)((G - mn) * 63.75 + 0.5);
+        c.b = (int)((B - mn) * 63.75 + 0.5);
 
         freq_data f;
         f.c = c;
@@ -437,14 +437,14 @@ void redraw(fftw_complex* out, freq_data* freq)
 
 void* socket_send(void* data)
 {
-    struct audio_data* audio = g_audio;
+    audio_data* audio = g_audio;
     espurna* strip = (espurna*)data;
 
-    struct hostent* host_entry = gethostbyname(strip->hostname);
+    hostent* host_entry = gethostbyname(strip->hostname);
     if (host_entry == nullptr) {
         audio->terminate = true;
     } else {
-        char* addr = inet_ntoa(*((struct in_addr*)host_entry->h_addr_list[0]));
+        char* addr = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
         strcpy(strip->resolved, addr);
         std::cout << "Connecting to " << strip->hostname << " as " << strip->resolved << std::endl;
     }
@@ -501,11 +501,8 @@ int main(int argc, char* argv[])
     int framerate = 60;
     bool stereo = true;
 
-    struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
-    struct audio_data audio;
-
-    //    audio.hostname = (char *)"192.168.1.222";
-    //    audio.api_key = (char *)"CB22BE3289153285";
+    timespec req = {.tv_sec = 0, .tv_nsec = 0 };
+    audio_data audio;
 
     int hn = argc / 2;
     for (int i = 0; i < hn; i++) {
