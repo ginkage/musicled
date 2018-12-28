@@ -566,7 +566,7 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
-    freq_data freq[HALF_N];
+    freq_data* freq = (freq_data*)malloc(N1 * sizeof(freq_data));
     precalc(freq, &audio);
 
     pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
@@ -583,6 +583,8 @@ int main(int argc, char* argv[])
     std::chrono::_V2::system_clock::time_point start = std::chrono::high_resolution_clock::now();
 
     while (!audio.terminate) {
+        VSync vsync(framerate);
+
         if (frames > framerate) {
             std::chrono::_V2::system_clock::time_point finish = std::chrono::high_resolution_clock::now();
             int64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
@@ -590,8 +592,6 @@ int main(int argc, char* argv[])
             frames = 0;
             start = finish;
         }
-
-        VSync vsync(framerate);
 
         audio.left.read(inl, N);
         if (audio.channels == 2)
@@ -633,6 +633,7 @@ int main(int argc, char* argv[])
     fftw_destroy_plan(pr);
     fftw_free(outl);
     fftw_free(outr);
+    free(freq);
 
     return 0;
 }
