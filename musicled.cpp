@@ -183,11 +183,12 @@ constexpr int HALF_N = N / 2 + 1;
 constexpr int N2 = 2 * HALF_N;
 
 struct espurna {
-    espurna(char* host, char* api, void* data)
+    espurna(char* host, char* api, char* addr, void* data)
         : hostname(host)
         , api_key(api)
         , audio(data)
     {
+        strcpy(resolved, addr);
     }
 
     char* hostname;
@@ -198,7 +199,7 @@ struct espurna {
 };
 
 struct color {
-    int r, g, b;
+    int r = 0, g = 0, b = 0;
 };
 
 struct audio_data {
@@ -461,15 +462,7 @@ void* socket_send(void* data)
 {
     espurna* strip = (espurna*)data;
     audio_data* audio = (audio_data*)strip->audio;
-
-    hostent* host_entry = gethostbyname(strip->hostname);
-    if (host_entry == nullptr) {
-        audio->terminate = true;
-    } else {
-        char* addr = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
-        strcpy(strip->resolved, addr);
-        std::cout << "Connecting to " << strip->hostname << " as " << strip->resolved << std::endl;
-    }
+    std::cout << "Connecting to " << strip->hostname << " as " << strip->resolved << std::endl;
 
     int prevR = 0, prevG = 0, prevB = 0;
     while (!audio->terminate) {
@@ -520,15 +513,20 @@ int main(int argc, char* argv[])
 {
     // general: define variables
     pthread_t p_thread;
-    double inl[N], inr[N];
     int framerate = 60;
     audio_data audio;
     video_data video;
 
-    int hn = argc / 2;
-    for (int i = 0; i < hn; i++) {
-        int k = i * 2;
-        audio.strip.push_back(espurna(argv[k + 1], argv[k + 2], &audio));
+    for (int k = 0; k + 2 < argc; k += 2) {
+        char* hostname = argv[k + 1];
+        char* api = argv[k + 2];
+        hostent* host_entry = gethostbyname(hostname);
+        if (host_entry == nullptr) {
+            fprintf(stderr, "Could not look up IP address for %s\n", hostname);
+            exit(EXIT_FAILURE);
+        }
+        char* addr = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
+        audio.strip.push_back(espurna(hostname, api, addr, &audio));
     }
 
     init_x(&video);
@@ -542,9 +540,11 @@ int main(int argc, char* argv[])
     sigaction(SIGINT, &action, NULL);
 
     // fft: planning to rock
-    fftw_complex outl[HALF_N];
+    fftw_complex* outl = fftw_alloc_complex(HALF_N);
+    fftw_complex* outr = fftw_alloc_complex(HALF_N);
+    double* inl = (double*)outl;
+    double* inr = (double*)outr;
     fftw_plan pl = fftw_plan_dft_r2c_1d(N, inl, outl, FFTW_MEASURE);
-    fftw_complex outr[HALF_N];
     fftw_plan pr = fftw_plan_dft_r2c_1d(N, inr, outr, FFTW_MEASURE);
 
     // input: init
@@ -611,6 +611,8 @@ int main(int argc, char* argv[])
     }
     fftw_destroy_plan(pl);
     fftw_destroy_plan(pr);
+    fftw_free(outl);
+    fftw_free(outr);
 
     return 0;
 }
