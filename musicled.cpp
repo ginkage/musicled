@@ -179,9 +179,10 @@ constexpr int HALF_N = N / 2 + 1;
 constexpr int N2 = 2 * HALF_N;
 
 struct espurna {
-    espurna(char* host, char* api)
+    espurna(char* host, char* api, void* data)
         : hostname(host)
         , api_key(api)
+        , audio(data)
     {
     }
 
@@ -189,6 +190,7 @@ struct espurna {
     char* api_key;
     char resolved[16];
     pthread_t p_thread;
+    void* audio;
 };
 
 struct color {
@@ -198,7 +200,7 @@ struct color {
 struct audio_data {
     int format;
     unsigned int rate;
-    int channels;
+    unsigned int channels;
     bool terminate; // shared variable used to terminate audio thread
 
     std::list<espurna> strip;
@@ -207,14 +209,15 @@ struct audio_data {
     SlidingWindow<double> right{ 65536 };
 
     color curColor;
+
+    snd_pcm_t* handle;
+    snd_pcm_uframes_t frames;
 };
 
-audio_data* g_audio;
-
-static void initialize_audio_parameters(snd_pcm_t** handle, audio_data* audio, snd_pcm_uframes_t* frames)
+static void initialize_audio_parameters(audio_data* audio)
 {
     // alsa: open device to capture audio
-    int err = snd_pcm_open(handle, audio_source, SND_PCM_STREAM_CAPTURE, 0);
+    int err = snd_pcm_open(&audio->handle, audio_source, SND_PCM_STREAM_CAPTURE, 0);
     if (err < 0) {
         fprintf(stderr, "error opening stream: %s\n", snd_strerror(err));
         exit(EXIT_FAILURE);
@@ -222,52 +225,75 @@ static void initialize_audio_parameters(snd_pcm_t** handle, audio_data* audio, s
 
     snd_pcm_hw_params_t* params;
     snd_pcm_hw_params_alloca(&params); // assembling params
-    snd_pcm_hw_params_any(*handle, params); // setting defaults or something
-    // interleaved mode right left right left
-    snd_pcm_hw_params_set_access(*handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
-    // trying to set 16bit
-    snd_pcm_hw_params_set_format(*handle, params, SND_PCM_FORMAT_S16_LE);
-    snd_pcm_hw_params_set_channels(*handle, params, CHANNELS_COUNT);
-    unsigned int sample_rate = SAMPLE_RATE;
-    // trying our rate
-    snd_pcm_hw_params_set_rate_near(*handle, params, &sample_rate, NULL);
-    // number of frames per read
-    snd_pcm_hw_params_set_period_size_near(*handle, params, frames, NULL);
+    snd_pcm_hw_params_any(audio->handle, params); // setting defaults or something
 
-    err = snd_pcm_hw_params(*handle, params); // attempting to set params
+    // interleaved mode right left right left
+    snd_pcm_hw_params_set_access(audio->handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
+
+    // trying to set 16bit
+    snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
+    snd_pcm_hw_params_set_format(audio->handle, params, format);
+    snd_pcm_hw_params_set_channels(audio->handle, params, CHANNELS_COUNT);
+
+    // trying our rate
+    unsigned int sample_rate = SAMPLE_RATE;
+    snd_pcm_hw_params_set_rate_near(audio->handle, params, &sample_rate, NULL);
+
+    // number of frames per read
+    snd_pcm_uframes_t frames = 256;
+    snd_pcm_hw_params_set_period_size_near(audio->handle, params, &frames, NULL);
+
+    err = snd_pcm_hw_params(audio->handle, params); // attempting to set params
     if (err < 0) {
         fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(err));
         exit(EXIT_FAILURE);
     }
 
-    if ((err = snd_pcm_prepare(*handle)) < 0) {
+    if ((err = snd_pcm_prepare(audio->handle)) < 0) {
         fprintf(stderr, "cannot prepare audio interface for use (%s)\n", snd_strerror(err));
         exit(EXIT_FAILURE);
     }
 
     // getting actual format
-    snd_pcm_hw_params_get_format(params, (snd_pcm_format_t*)&sample_rate);
+    snd_pcm_hw_params_get_format(params, &format);
 
     // converting result to number of bits
-    if (sample_rate <= 5)
+    switch (format) {
+    case SND_PCM_FORMAT_S8:
+    case SND_PCM_FORMAT_U8:
+        audio->format = 8;
+        break;
+    case SND_PCM_FORMAT_S16_LE:
+    case SND_PCM_FORMAT_S16_BE:
+    case SND_PCM_FORMAT_U16_LE:
+    case SND_PCM_FORMAT_U16_BE:
         audio->format = 16;
-    else if (sample_rate <= 9)
+        break;
+    case SND_PCM_FORMAT_S24_LE:
+    case SND_PCM_FORMAT_S24_BE:
+    case SND_PCM_FORMAT_U24_LE:
+    case SND_PCM_FORMAT_U24_BE:
         audio->format = 24;
-    else
+        break;
+    case SND_PCM_FORMAT_S32_LE:
+    case SND_PCM_FORMAT_S32_BE:
+    case SND_PCM_FORMAT_U32_LE:
+    case SND_PCM_FORMAT_U32_BE:
         audio->format = 32;
+        break;
+    default:
+        break;
+    }
 
     snd_pcm_hw_params_get_rate(params, &audio->rate, NULL);
-    snd_pcm_hw_params_get_period_size(params, frames, NULL);
-    // snd_pcm_hw_params_get_period_time(params, &sample_rate, &dir);
+    snd_pcm_hw_params_get_period_size(params, &audio->frames, NULL);
+    snd_pcm_hw_params_get_channels(params, &audio->channels);
 }
 
 void* input_alsa(void* data)
 {
-    int err;
     audio_data* audio = (audio_data*)data;
-    snd_pcm_t* handle;
-    snd_pcm_uframes_t frames = 256;
-    initialize_audio_parameters(&handle, audio, &frames);
+    int frames = (int)audio->frames;
     const int bpf = (audio->format / 8) * CHANNELS_COUNT; // bytes per frame
     const int size = frames * bpf;
     uint8_t* buffer = new uint8_t[size];
@@ -277,15 +303,15 @@ void* input_alsa(void* data)
     const int roff = bpf - 2; // Highest 2 bytes in the second half of a frame
 
     while (!audio->terminate) {
-        err = snd_pcm_readi(handle, buffer, frames);
+        int err = snd_pcm_readi(audio->handle, buffer, audio->frames);
 
         if (err == -EPIPE) {
             fprintf(stderr, "overrun occurred\n");
-            snd_pcm_prepare(handle);
+            snd_pcm_prepare(audio->handle);
         } else if (err < 0) {
             fprintf(stderr, "error from read: %s\n", snd_strerror(err));
-        } else if (err != (int)frames) {
-            fprintf(stderr, "short read, read %d of %d frames\n", err, (int)frames);
+        } else if (err != frames) {
+            fprintf(stderr, "short read, read %d of %d frames\n", err, frames);
         } else {
             double left_data[frames];
             double right_data[frames];
@@ -296,7 +322,7 @@ void* input_alsa(void* data)
                 int32_t* left = (int32_t*)buffer;
                 int32_t* right = (int32_t*)(buffer + 4);
                 double scale = 1 / 65536.0;
-                for (unsigned int i = 0; i < frames; i++) {
+                for (int i = 0; i < frames; i++) {
                     left_data[i] = *left * scale;
                     right_data[i] = *right * scale;
                     left += 2;
@@ -307,7 +333,7 @@ void* input_alsa(void* data)
                 // This is already optimal for 16 and 24 bit
                 int16_t* left = (int16_t*)(buffer + loff);
                 int16_t* right = (int16_t*)(buffer + roff);
-                for (unsigned int i = 0; i < frames; i++) {
+                for (int i = 0; i < frames; i++) {
                     left_data[i] = *left; //(int(*left) + int(*right)) * 0.5;
                     right_data[i] = *right;
                     left += stride;
@@ -321,7 +347,7 @@ void* input_alsa(void* data)
         }
     }
 
-    snd_pcm_close(handle);
+    snd_pcm_close(audio->handle);
     delete[] buffer;
 
     return NULL;
@@ -374,7 +400,7 @@ void precalc(freq_data* out)
     }
 }
 
-void redraw(fftw_complex* out, freq_data* freq)
+void redraw(audio_data* audio, fftw_complex* out, freq_data* freq)
 {
     unsigned int width = 648, height = 360, bw, dr;
     Window root;
@@ -429,7 +455,7 @@ void redraw(fftw_complex* out, freq_data* freq)
         }
     }
 
-    g_audio->curColor = freq[maxF].c;
+    audio->curColor = freq[maxF].c;
 
     XCopyArea(dis, double_buffer, win, gc, 0, 0, width, height, 0, 0);
     XFlush(dis);
@@ -437,8 +463,8 @@ void redraw(fftw_complex* out, freq_data* freq)
 
 void* socket_send(void* data)
 {
-    audio_data* audio = g_audio;
     espurna* strip = (espurna*)data;
+    audio_data* audio = (audio_data*)strip->audio;
 
     hostent* host_entry = gethostbyname(strip->hostname);
     if (host_entry == nullptr) {
@@ -479,6 +505,8 @@ void* socket_send(void* data)
     return NULL;
 }
 
+audio_data* g_audio;
+
 // general: handle signals
 void sig_handler(int sig_no)
 {
@@ -496,18 +524,14 @@ int main(int argc, char* argv[])
 {
     // general: define variables
     pthread_t p_thread;
-    int i, n;
-    double inl[N2], inr[N2];
+    double inl[N], inr[N];
     int framerate = 60;
-    bool stereo = true;
-
-    timespec req = {.tv_sec = 0, .tv_nsec = 0 };
     audio_data audio;
 
     int hn = argc / 2;
     for (int i = 0; i < hn; i++) {
         int k = i * 2;
-        audio.strip.push_back(espurna(argv[k + 1], argv[k + 2]));
+        audio.strip.push_back(espurna(argv[k + 1], argv[k + 2], &audio));
     }
 
     init_x();
@@ -517,6 +541,7 @@ int main(int argc, char* argv[])
         struct sigaction action;
         memset(&action, 0, sizeof(action));
         action.sa_handler = &sig_handler;
+        g_audio = &audio;
         sigaction(SIGINT, &action, NULL);
     }
 
@@ -533,26 +558,18 @@ int main(int argc, char* argv[])
     audio.format = -1;
     audio.rate = 0;
     audio.terminate = false;
-    audio.channels = (stereo ? 2 : 1);
+    audio.channels = 2;
 
-    g_audio = &audio;
+    initialize_audio_parameters(&audio);
+    if (audio.format == -1 || audio.rate == 0) {
+        fprintf(stderr, "Could not get rate and/or format, quiting...\n");
+        exit(EXIT_FAILURE);
+    }
+
     pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
 
     for (espurna& strip : audio.strip) {
         pthread_create(&strip.p_thread, NULL, socket_send, (void*)&strip);
-    }
-
-    n = 0;
-    while (audio.format == -1 || audio.rate == 0) {
-        req.tv_sec = 0;
-        req.tv_nsec = 1000000;
-        nanosleep(&req, NULL);
-        n++;
-        if (n > 2000) {
-            fprintf(stderr, "could not get rate and/or format, "
-                            "problems with audio thread? quiting...\n");
-            exit(EXIT_FAILURE);
-        }
     }
 
     XEvent event; /* the XEvent declaration !!! */
@@ -563,22 +580,13 @@ int main(int argc, char* argv[])
         VSync vsync(framerate);
 
         audio.left.read(inl, N);
-        if (stereo)
+        if (audio.channels == 2)
             audio.right.read(inr, N);
 
-        for (i = N; i < N2; i++) {
-            inl[i] = 0;
-            if (stereo)
-                inr[i] = 0;
-        }
-
         // process: execute FFT and sort frequency bands
-        if (stereo) {
-            fftw_execute(pl);
+        fftw_execute(pl);
+        if (audio.channels == 2)
             fftw_execute(pr);
-        } else {
-            fftw_execute(pl);
-        }
 
         if (dis != nullptr) {
             while (XPending(dis) > 0) {
@@ -586,7 +594,7 @@ int main(int argc, char* argv[])
 
                 switch (event.type) {
                 case Expose:
-                    // redraw(outl, freq);
+                    // redraw(&audio, outl, freq);
                     break;
                 case KeyPress:
                     if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
@@ -595,7 +603,7 @@ int main(int argc, char* argv[])
                 }
             }
 
-            redraw(outl, freq);
+            redraw(&audio, outl, freq);
         }
     }
 
