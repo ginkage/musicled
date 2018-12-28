@@ -69,9 +69,11 @@ class VSync {
 private:
     std::chrono::_V2::system_clock::time_point start;
     int64_t frame_time;
+    bool debug;
 
 public:
-    VSync(int frame_rate)
+    VSync(int frame_rate, bool dbg = false)
+        : debug(dbg)
     {
         frame_time = 1e9 / frame_rate;
         start = std::chrono::high_resolution_clock::now();
@@ -87,6 +89,8 @@ public:
             req.tv_sec = 0;
             req.tv_nsec = frame_time - duration;
             nanosleep(&req, NULL);
+        } else if (debug) {
+            std::cout << "Late for " << (duration - frame_time) << " ns" << std::endl;
         }
     }
 };
@@ -433,7 +437,7 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* out, freq_data* 
 
     int minK = audio->minK, maxK = audio->maxK;
     double maxAmp = 0;
-    int maxF;
+    int maxF = 0;
     int lastx = -1;
 
     for (int k = minK; k < maxK; k++) {
