@@ -216,6 +216,8 @@ struct audio_data {
 
     snd_pcm_t* handle;
     snd_pcm_uframes_t frames;
+
+    int minK, maxK;
 };
 
 static void initialize_audio_parameters(audio_data* audio)
@@ -370,10 +372,11 @@ struct freq_data {
     int x;
 };
 
-inline double clamp(double val)
+// "Saw" function with specified range
+inline double saw(double val, double p)
 {
-    double x = val / 12.0;
-    return 12 * fabs(x - floor(x + 0.5));
+    double x = val / p;
+    return p * fabs(x - floor(x + 0.5));
 }
 
 void precalc(freq_data* out, audio_data* audio)
@@ -383,15 +386,18 @@ void precalc(freq_data* out, audio_data* audio)
     double base = log(pow(2, 1.0 / 12.0));
     double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
 
+    // Notes in [36, 108] range, i.e. 6 octaves
+    audio->minK = ceil(exp(35 * base) / (minFreq * fcoef));
+    audio->maxK = ceil(exp(108 * base) / (minFreq * fcoef));
+
     for (int k = 1; k < N1; k++) {
         double frequency = k * minFreq;
         double note = log(frequency * fcoef) / base; // note = 12 * Octave + Note
         double spectre = fmod(note, 12); // spectre is within [0, 12)
-        double R = clamp(spectre - 6);
-        double G = clamp(spectre - 10);
-        double B = clamp(spectre - 2);
-        double x = (spectre - 2) * 0.25;
-        double mn = 4 * fabs(x - floor(x + 0.5));
+        double R = saw(spectre - 6, 12);
+        double G = saw(spectre - 10, 12);
+        double B = saw(spectre - 2, 12);
+        double mn = saw(spectre - 2, 4);
 
         color c;
         c.r = (int)((R - mn) * 63.75 + 0.5);
@@ -413,16 +419,13 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* out, freq_data* 
     Window win = video->win;
     GC gc = video->gc;
     Pixmap double_buffer = video->double_buffer;
-    unsigned int width = 648, height = 360, bw, dr;
+    unsigned int width, height, bw, dr;
     Window root;
     int xx, yy;
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
 
-    double maxFreq = N;
-    double minFreq = audio->rate / maxFreq;
     double minNote = 34;
     double maxNote = 110;
-
     double kx = width / (maxNote - minNote);
     double ky = height * 0.5 / 65536.0;
 
@@ -443,10 +446,7 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* out, freq_data* 
     XSetForeground(dis, gc, 0);
     XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
 
-    double base = log(pow(2, 1.0 / 12.0));
-    double fcoef = minFreq * pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
-    int minK = ceil(exp(35 * base) / fcoef);
-    int maxK = ceil(exp(108 * base) / fcoef);
+    int minK = audio->minK, maxK = audio->maxK;
     double maxAmp = 0;
     int maxF;
     int lastx = -1;
