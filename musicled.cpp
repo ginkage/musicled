@@ -20,9 +20,9 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <list>
 #include <chrono>
 #include <iostream>
+#include <list>
 
 #include <X11/Xlib.h>
 #include <X11/Xos.h>
@@ -83,7 +83,7 @@ public:
         int64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
 
         if (duration < frame_time) {
-            struct timespec req = { .tv_sec = 0, .tv_nsec = 0 };
+            struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
             req.tv_sec = 0;
             req.tv_nsec = frame_time - duration;
             nanosleep(&req, NULL);
@@ -179,10 +179,14 @@ constexpr int HALF_N = N / 2 + 1;
 constexpr int N2 = 2 * HALF_N;
 
 struct espurna {
-    espurna(char *host, char *api) : hostname(host), api_key(api) {}
+    espurna(char* host, char* api)
+        : hostname(host)
+        , api_key(api)
+    {
+    }
 
-    char *hostname;
-    char *api_key;
+    char* hostname;
+    char* api_key;
     char resolved[16];
     pthread_t p_thread;
 };
@@ -287,29 +291,29 @@ void* input_alsa(void* data)
             double right_data[frames];
 
             switch (audio->format) {
-                case 33: { // One-line flag protection
-                    // Use the same scale, but retain higher precision
-                    int32_t* left = (int32_t*)buffer;
-                    int32_t* right = (int32_t*)(buffer + 4);
-                    double scale = 1 / 65536.0;
-                    for (unsigned int i = 0; i < frames; i++) {
-                        left_data[i] = *left * scale;
-                        right_data[i] = *right * scale;
-                        left += 2;
-                        right += 2;
-                    }
-                } break;
-                default: {
-                    // This is already optimal for 16 and 24 bit
-                    int16_t* left = (int16_t*)(buffer + loff);
-                    int16_t* right = (int16_t*)(buffer + roff);
-                    for (unsigned int i = 0; i < frames; i++) {
-                        left_data[i] = *left; //(int(*left) + int(*right)) * 0.5;
-                        right_data[i] = *right;
-                        left += stride;
-                        right += stride;
-                    }
-                } break;
+            case 33: { // One-line flag protection
+                // Use the same scale, but retain higher precision
+                int32_t* left = (int32_t*)buffer;
+                int32_t* right = (int32_t*)(buffer + 4);
+                double scale = 1 / 65536.0;
+                for (unsigned int i = 0; i < frames; i++) {
+                    left_data[i] = *left * scale;
+                    right_data[i] = *right * scale;
+                    left += 2;
+                    right += 2;
+                }
+            } break;
+            default: {
+                // This is already optimal for 16 and 24 bit
+                int16_t* left = (int16_t*)(buffer + loff);
+                int16_t* right = (int16_t*)(buffer + roff);
+                for (unsigned int i = 0; i < frames; i++) {
+                    left_data[i] = *left; //(int(*left) + int(*right)) * 0.5;
+                    right_data[i] = *right;
+                    left += stride;
+                    right += stride;
+                }
+            } break;
             }
 
             audio->left.write(left_data, frames);
@@ -339,7 +343,7 @@ inline double clamp(double val)
     return 12 * fabs(x - floor(x + 0.5));
 }
 
-void precalc(freq_data *out)
+void precalc(freq_data* out)
 {
     double maxFreq = N;
     double minFreq = SAMPLE_RATE / maxFreq;
@@ -356,11 +360,10 @@ void precalc(freq_data *out)
         double x = (spectre - 2) * 0.25;
         double mn = 4 * fabs(x - floor(x + 0.5));
 
-        color c = {
-            .r = (int)((R - mn) * 63.75 + 0.5),
-            .g = (int)((G - mn) * 63.75 + 0.5),
-            .b = (int)((B - mn) * 63.75 + 0.5)
-        };
+        color c;
+        c.r = (int)((R - mn) * 63.75 + 0.5);
+       	c.g = (int)((G - mn) * 63.75 + 0.5);
+	c.b = (int)((B - mn) * 63.75 + 0.5);
 
         freq_data f;
         f.c = c;
@@ -435,13 +438,13 @@ void redraw(fftw_complex* out, freq_data* freq)
 void* socket_send(void* data)
 {
     struct audio_data* audio = g_audio;
-    espurna *strip = (espurna *)data;
+    espurna* strip = (espurna*)data;
 
-    struct hostent *host_entry = gethostbyname(strip->hostname);
+    struct hostent* host_entry = gethostbyname(strip->hostname);
     if (host_entry == nullptr) {
         audio->terminate = true;
     } else {
-        char *addr = inet_ntoa(*((struct in_addr*) host_entry->h_addr_list[0])); 
+        char* addr = inet_ntoa(*((struct in_addr*)host_entry->h_addr_list[0]));
         strcpy(strip->resolved, addr);
         std::cout << "Connecting to " << strip->hostname << " as " << strip->resolved << std::endl;
     }
@@ -489,7 +492,7 @@ void sig_handler(int sig_no)
 }
 
 // general: entry point
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     // general: define variables
     pthread_t p_thread;
@@ -501,8 +504,8 @@ int main(int argc, char *argv[])
     struct timespec req = {.tv_sec = 0, .tv_nsec = 0 };
     struct audio_data audio;
 
-//    audio.hostname = (char *)"192.168.1.222";
-//    audio.api_key = (char *)"CB22BE3289153285";
+    //    audio.hostname = (char *)"192.168.1.222";
+    //    audio.api_key = (char *)"CB22BE3289153285";
 
     int hn = argc / 2;
     for (int i = 0; i < hn; i++) {
@@ -586,7 +589,7 @@ int main(int argc, char *argv[])
 
                 switch (event.type) {
                 case Expose:
-                    //redraw(outl, freq);
+                    // redraw(outl, freq);
                     break;
                 case KeyPress:
                     if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
