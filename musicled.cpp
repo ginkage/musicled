@@ -547,9 +547,6 @@ int main(int argc, char* argv[])
     fftw_complex outr[HALF_N];
     fftw_plan pr = fftw_plan_dft_r2c_1d(N, inr, outr, FFTW_MEASURE);
 
-    freq_data freq[HALF_N];
-    precalc(freq, &audio);
-
     // input: init
     audio.format = -1;
     audio.rate = 0;
@@ -561,6 +558,9 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Could not get rate and/or format, quiting...\n");
         exit(EXIT_FAILURE);
     }
+
+    freq_data freq[HALF_N];
+    precalc(freq, &audio);
 
     pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
 
