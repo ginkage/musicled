@@ -287,29 +287,29 @@ void* input_alsa(void* data)
             double right_data[frames];
 
             switch (audio->format) {
-            case 33: { // One-line flag protection
-                // Use the same scale, but retain higher precision
-                int32_t* left = (int32_t*)buffer;
-                int32_t* right = (int32_t*)(buffer + 4);
-                double scale = 1 / 65536.0;
-                for (unsigned int i = 0; i < frames; i++) {
-                    left_data[i] = *left * scale;
-                    right_data[i] = *right * scale;
-                    left += 2;
-                    right += 2;
-                }
-            } break;
-            default: {
-                // This is already optimal for 16 and 24 bit
-                int16_t* left = (int16_t*)(buffer + loff);
-                int16_t* right = (int16_t*)(buffer + roff);
-                for (unsigned int i = 0; i < frames; i++) {
-                    left_data[i] = (int(*left) + int(*right)) * 0.5;
-                    right_data[i] = *right;
-                    left += stride;
-                    right += stride;
-                }
-            } break;
+                case 33: { // One-line flag protection
+                    // Use the same scale, but retain higher precision
+                    int32_t* left = (int32_t*)buffer;
+                    int32_t* right = (int32_t*)(buffer + 4);
+                    double scale = 1 / 65536.0;
+                    for (unsigned int i = 0; i < frames; i++) {
+                        left_data[i] = *left * scale;
+                        right_data[i] = *right * scale;
+                        left += 2;
+                        right += 2;
+                    }
+                } break;
+                default: {
+                    // This is already optimal for 16 and 24 bit
+                    int16_t* left = (int16_t*)(buffer + loff);
+                    int16_t* right = (int16_t*)(buffer + roff);
+                    for (unsigned int i = 0; i < frames; i++) {
+                        left_data[i] = *left; //(int(*left) + int(*right)) * 0.5;
+                        right_data[i] = *right;
+                        left += stride;
+                        right += stride;
+                    }
+                } break;
             }
 
             audio->left.write(left_data, frames);
@@ -493,7 +493,6 @@ int main(int argc, char *argv[])
 {
     // general: define variables
     pthread_t p_thread;
-    int sleep = 0;
     int i, n;
     double inl[N2], inr[N2];
     int framerate = 60;
@@ -563,17 +562,9 @@ int main(int argc, char *argv[])
     while (!audio.terminate) {
         VSync vsync(framerate);
 
-        // process: populate input buffer and check if input is present
-        bool silence = true;
-
         audio.left.read(inl, N);
         if (stereo)
             audio.right.read(inr, N);
-
-        for (i = 0; i < N; i++) {
-            if (inl[i] || (stereo && inr[i]))
-                silence = false;
-        }
 
         for (i = N; i < N2; i++) {
             inl[i] = 0;
@@ -581,43 +572,29 @@ int main(int argc, char *argv[])
                 inr[i] = 0;
         }
 
-        if (silence)
-            sleep++;
-        else
-            sleep = 0;
-
-        // process: if input was present for the last 5 seconds apply FFT to it
-        if (sleep < framerate * 5) {
-            // process: execute FFT and sort frequency bands
-            if (stereo) {
-                fftw_execute(pl);
-                fftw_execute(pr);
-            } else {
-                fftw_execute(pl);
-            }
-        } else { //**if in sleep mode wait and continue**//
-            // wait 1 sec, then check sound again.
-            req.tv_sec = 1;
-            req.tv_nsec = 0;
-            nanosleep(&req, NULL);
-            continue;
-        }
-
-        while (dis != nullptr && XPending(dis) > 0) {
-            XNextEvent(dis, &event);
-
-            switch (event.type) {
-            case Expose:
-                //redraw(outl, freq);
-                break;
-            case KeyPress:
-                if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
-                    audio.terminate = true;
-                break;
-            }
+        // process: execute FFT and sort frequency bands
+        if (stereo) {
+            fftw_execute(pl);
+            fftw_execute(pr);
+        } else {
+            fftw_execute(pl);
         }
 
         if (dis != nullptr) {
+            while (XPending(dis) > 0) {
+                XNextEvent(dis, &event);
+
+                switch (event.type) {
+                case Expose:
+                    //redraw(outl, freq);
+                    break;
+                case KeyPress:
+                    if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
+                        audio.terminate = true;
+                    break;
+                }
+            }
+
             redraw(outl, freq);
         }
     }
