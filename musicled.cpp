@@ -167,11 +167,6 @@ private:
     int pos; // Position just after the last added value
 };
 
-// assuming stereo
-#define CHANNELS_COUNT 2
-#define SAMPLE_RATE 44100
-
-const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
 constexpr int M = 11;
 constexpr int N = 1 << M;
 constexpr int N1 = N / 2;
@@ -216,6 +211,8 @@ struct audio_data {
 
 static void initialize_audio_parameters(audio_data* audio)
 {
+    const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
+
     // alsa: open device to capture audio
     int err = snd_pcm_open(&audio->handle, audio_source, SND_PCM_STREAM_CAPTURE, 0);
     if (err < 0) {
@@ -233,10 +230,13 @@ static void initialize_audio_parameters(audio_data* audio)
     // trying to set 16bit
     snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
     snd_pcm_hw_params_set_format(audio->handle, params, format);
-    snd_pcm_hw_params_set_channels(audio->handle, params, CHANNELS_COUNT);
+
+    // assuming stereo
+    unsigned int channels = 2;
+    snd_pcm_hw_params_set_channels(audio->handle, params, channels);
 
     // trying our rate
-    unsigned int sample_rate = SAMPLE_RATE;
+    unsigned int sample_rate = 44100;
     snd_pcm_hw_params_set_rate_near(audio->handle, params, &sample_rate, NULL);
 
     // number of frames per read
@@ -249,7 +249,8 @@ static void initialize_audio_parameters(audio_data* audio)
         exit(EXIT_FAILURE);
     }
 
-    if ((err = snd_pcm_prepare(audio->handle)) < 0) {
+    err = snd_pcm_prepare(audio->handle);
+    if (err < 0) {
         fprintf(stderr, "cannot prepare audio interface for use (%s)\n", snd_strerror(err));
         exit(EXIT_FAILURE);
     }
@@ -294,7 +295,7 @@ void* input_alsa(void* data)
 {
     audio_data* audio = (audio_data*)data;
     int frames = (int)audio->frames;
-    const int bpf = (audio->format / 8) * CHANNELS_COUNT; // bytes per frame
+    const int bpf = (audio->format / 8) * audio->channels; // bytes per frame
     const int size = frames * bpf;
     uint8_t* buffer = new uint8_t[size];
 
@@ -369,10 +370,10 @@ inline double clamp(double val)
     return 12 * fabs(x - floor(x + 0.5));
 }
 
-void precalc(freq_data* out)
+void precalc(freq_data* out, audio_data *audio)
 {
     double maxFreq = N;
-    double minFreq = SAMPLE_RATE / maxFreq;
+    double minFreq = audio->rate / maxFreq;
     double base = log(pow(2, 1.0 / 12.0));
     double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
 
@@ -408,7 +409,7 @@ void redraw(audio_data* audio, fftw_complex* out, freq_data* freq)
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
 
     double maxFreq = N;
-    double minFreq = SAMPLE_RATE / maxFreq;
+    double minFreq = audio->rate / maxFreq;
     double minNote = 34;
     double maxNote = 110;
 
@@ -552,7 +553,7 @@ int main(int argc, char* argv[])
     fftw_plan pr = fftw_plan_dft_r2c_1d(N, inr, outr, FFTW_MEASURE);
 
     freq_data freq[HALF_N];
-    precalc(freq);
+    precalc(freq, &audio);
 
     // input: init
     audio.format = -1;
