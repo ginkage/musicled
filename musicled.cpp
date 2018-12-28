@@ -402,7 +402,7 @@ void precalc(freq_data* out, audio_data* audio)
     }
 }
 
-void redraw(audio_data* audio, video_data* video, fftw_complex* out, freq_data* freq)
+void redraw(audio_data* audio, video_data* video, fftw_complex* outl, fftw_complex* outr, freq_data* freq)
 {
     Display* dis = video->dis;
     Window win = video->win;
@@ -416,7 +416,7 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* out, freq_data* 
     double minNote = 34;
     double maxNote = 110;
     double kx = width / (maxNote - minNote);
-    double ky = height * 0.5 / 65536.0;
+    double ky = height * 0.25 / 65536.0;
 
     if (width != video->last_width || height != video->last_height) {
         video->last_width = width;
@@ -439,23 +439,29 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* out, freq_data* 
     double maxAmp = 0;
     int maxF = 0;
     int lastx = -1;
-    double prevAmp = 0;
+    double prevAmpL = 0;
+    double prevAmpR = 0;
 
     for (int k = minK; k < maxK; k++) {
-        double amp = hypot(out[k][0], out[k][1]);
+        double ampl = hypot(outl[k][0], outl[k][1]);
+        double ampr = hypot(outr[k][0], outr[k][1]);
+        double amp = (ampl + ampr) * 0.5;
         if (amp > maxAmp) {
             maxAmp = amp;
             maxF = k;
         }
 
-        prevAmp = std::max(prevAmp, amp);
+        prevAmpL = std::max(prevAmpL, ampl);
+        prevAmpR = std::max(prevAmpR, ampr);
         int x = freq[k].x;
         if (lastx < x) {
             lastx = x + 3;
-            int y = (int)(prevAmp * ky + 0.5);
-            prevAmp = 0;
+            int yl = (int)(prevAmpL * ky + 0.5);
+            int yr = (int)(prevAmpR * ky + 0.5);
+            prevAmpL = 0;
+            prevAmpR = 0;
             XSetForeground(dis, gc, freq[k].ic);
-            XDrawLine(dis, double_buffer, gc, x, height - y, x, height);
+            XDrawLine(dis, double_buffer, gc, x, height * 0.5 - yl, x, height * 0.5 + yr);
         }
     }
 
@@ -608,7 +614,7 @@ int main(int argc, char* argv[])
 
                 switch (event.type) {
                 case Expose:
-                    // redraw(&audio, &video, outl, freq);
+                    // redraw(&audio, &video, outl, outr, freq);
                     break;
                 case KeyPress:
                     if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
@@ -617,7 +623,7 @@ int main(int argc, char* argv[])
                 }
             }
 
-            redraw(&audio, &video, outl, freq);
+            redraw(&audio, &video, outl, outr, freq);
         }
 
         frames++;
