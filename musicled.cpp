@@ -91,39 +91,48 @@ public:
     }
 };
 
-Display* dis;
-int screen;
-Window win;
-GC gc;
+struct video_data {
+    Display* dis;
+    int screen;
+    Window win;
+    GC gc;
+    Pixmap double_buffer = 0;
+    unsigned int last_width = -1, last_height = -1;
+};
 
-void init_x()
+void init_x(video_data* video)
 {
-    dis = XOpenDisplay((char*)0);
+    Display* dis = XOpenDisplay((char*)0);
     if (dis == nullptr)
         return;
 
-    screen = DefaultScreen(dis);
+    int screen = DefaultScreen(dis);
     unsigned long black = BlackPixel(dis, screen), white = WhitePixel(dis, screen);
 
-    win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 648, 360, 0, black, black);
+    Window win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 648, 360, 0, black, black);
     XSetStandardProperties(dis, win, "MusicLED", "Music", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
 
-    gc = XCreateGC(dis, win, 0, 0);
+    GC gc = XCreateGC(dis, win, 0, 0);
 
     XClearWindow(dis, win);
     XMapRaised(dis, win);
     XSetForeground(dis, gc, white);
+
+    video->dis = dis;
+    video->screen = screen;
+    video->win = win;
+    video->gc = gc;
 };
 
-void close_x()
+void close_x(video_data* video)
 {
-    if (dis == nullptr)
+    if (video->dis == nullptr)
         return;
 
-    XFreeGC(dis, gc);
-    XDestroyWindow(dis, win);
-    XCloseDisplay(dis);
+    XFreeGC(video->dis, video->gc);
+    XDestroyWindow(video->dis, video->win);
+    XCloseDisplay(video->dis);
 }
 
 template <class T> class SlidingWindow {
@@ -354,9 +363,6 @@ void* input_alsa(void* data)
     return NULL;
 }
 
-Pixmap double_buffer = 0;
-unsigned int last_width = -1, last_height = -1;
-
 struct freq_data {
     color c;
     unsigned long ic;
@@ -370,7 +376,7 @@ inline double clamp(double val)
     return 12 * fabs(x - floor(x + 0.5));
 }
 
-void precalc(freq_data* out, audio_data *audio)
+void precalc(freq_data* out, audio_data* audio)
 {
     double maxFreq = N;
     double minFreq = audio->rate / maxFreq;
@@ -401,8 +407,12 @@ void precalc(freq_data* out, audio_data *audio)
     }
 }
 
-void redraw(audio_data* audio, fftw_complex* out, freq_data* freq)
+void redraw(audio_data* audio, video_data* video, fftw_complex* out, freq_data* freq)
 {
+    Display* dis = video->dis;
+    Window win = video->win;
+    GC gc = video->gc;
+    Pixmap double_buffer = video->double_buffer;
     unsigned int width = 648, height = 360, bw, dr;
     Window root;
     int xx, yy;
@@ -416,13 +426,14 @@ void redraw(audio_data* audio, fftw_complex* out, freq_data* freq)
     double kx = width / (maxNote - minNote);
     double ky = height * 0.5 / 65536.0;
 
-    if (width != last_width || height != last_height) {
-        last_width = width;
-        last_height = height;
+    if (width != video->last_width || height != video->last_height) {
+        video->last_width = width;
+        video->last_height = height;
         if (double_buffer != 0) {
             XFreePixmap(dis, double_buffer);
         }
         double_buffer = XCreatePixmap(dis, win, width, height, 24);
+        video->double_buffer = double_buffer;
 
         for (int k = 1; k < N1; k++) {
             freq[k].x = (int)((freq[k].note - minNote) * kx + 0.5);
@@ -528,6 +539,7 @@ int main(int argc, char* argv[])
     double inl[N], inr[N];
     int framerate = 60;
     audio_data audio;
+    video_data video;
 
     int hn = argc / 2;
     for (int i = 0; i < hn; i++) {
@@ -535,16 +547,15 @@ int main(int argc, char* argv[])
         audio.strip.push_back(espurna(argv[k + 1], argv[k + 2], &audio));
     }
 
-    init_x();
+    init_x(&video);
+    Display* dis = video.dis;
 
-    if (dis == nullptr) {
-        // general: handle Ctrl+C
-        struct sigaction action;
-        memset(&action, 0, sizeof(action));
-        action.sa_handler = &sig_handler;
-        g_audio = &audio;
-        sigaction(SIGINT, &action, NULL);
-    }
+    // general: handle Ctrl+C
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = &sig_handler;
+    g_audio = &audio;
+    sigaction(SIGINT, &action, NULL);
 
     // fft: planning to rock
     fftw_complex outl[HALF_N];
@@ -595,7 +606,7 @@ int main(int argc, char* argv[])
 
                 switch (event.type) {
                 case Expose:
-                    // redraw(&audio, outl, freq);
+                    // redraw(&audio, &video, outl, freq);
                     break;
                 case KeyPress:
                     if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
@@ -604,11 +615,11 @@ int main(int argc, char* argv[])
                 }
             }
 
-            redraw(&audio, outl, freq);
+            redraw(&audio, &video, outl, freq);
         }
     }
 
-    close_x();
+    close_x(&video);
 
     pthread_join(p_thread, NULL);
     for (espurna& strip : audio.strip) {
