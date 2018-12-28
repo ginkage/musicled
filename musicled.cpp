@@ -150,6 +150,7 @@ public:
     }
 
     ~SlidingWindow() { delete[] buffer; }
+
     /* Replace oldest N values in the circular buffer with Values */
     void write(T* values, int n)
     {
@@ -437,7 +438,7 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* outl, fftw_compl
 
     int minK = audio->minK, maxK = audio->maxK;
     double maxAmp = 0;
-    int maxF = 0;
+    int maxF = minK;
     int lastx = -1;
     double prevAmpL = 0;
     double prevAmpR = 0;
@@ -445,7 +446,7 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* outl, fftw_compl
     for (int k = minK; k < maxK; k++) {
         double ampl = hypot(outl[k][0], outl[k][1]);
         double ampr = hypot(outr[k][0], outr[k][1]);
-        double amp = (ampl + ampr) * 0.5;
+        double amp = std::max(ampl, ampr);
         if (amp > maxAmp) {
             maxAmp = amp;
             maxF = k;
@@ -575,8 +576,10 @@ int main(int argc, char* argv[])
     freq_data* freq = (freq_data*)malloc(N1 * sizeof(freq_data));
     precalc(freq, &audio);
 
-    pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
+    memset(outl, 0, HALF_N * sizeof(fftw_complex));
+    memset(outr, 0, HALF_N * sizeof(fftw_complex));
 
+    pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
     for (espurna& strip : audio.strip) {
         pthread_create(&strip.p_thread, NULL, socket_send, (void*)&strip);
     }
