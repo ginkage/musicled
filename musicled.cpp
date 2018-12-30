@@ -74,8 +74,8 @@ private:
 public:
     VSync(int frame_rate, std::chrono::_V2::system_clock::time_point* prev = nullptr)
         : pstart(prev)
+        , frame_time(1e9 / frame_rate)
     {
-        frame_time = 1e9 / frame_rate;
         start = (pstart != nullptr) ? (*pstart) : std::chrono::high_resolution_clock::now();
     }
 
@@ -94,6 +94,30 @@ public:
                 *pstart = start + std::chrono::nanoseconds(frame_time);
         } else if (pstart != nullptr)
             *pstart = finish;
+    }
+};
+
+class FPS {
+private:
+    int frames;
+    std::chrono::_V2::system_clock::time_point start;
+
+public:
+    FPS()
+        : frames(-1)
+        , start(std::chrono::high_resolution_clock::now())
+    {
+    }
+
+    void tick(int framerate)
+    {
+        if (++frames >= framerate) {
+            std::chrono::_V2::system_clock::time_point finish = std::chrono::high_resolution_clock::now();
+            int64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+            std::cout << (frames * 1.0e9 / duration) << " fps" << std::endl;
+            frames = 0;
+            start = finish;
+        }
     }
 };
 
@@ -590,20 +614,11 @@ int main(int argc, char* argv[])
     KeySym key; /* a dealie-bob to handle KeyPress Events */
     char text[255]; /* a char buffer for KeyPress Events */
 
-    int frames = 0;
-    std::chrono::_V2::system_clock::time_point start = std::chrono::high_resolution_clock::now();
-    std::chrono::_V2::system_clock::time_point vstart = start;
-
+    FPS fps;
+    std::chrono::_V2::system_clock::time_point vstart = std::chrono::high_resolution_clock::now();
     while (!audio.terminate) {
         VSync vsync(framerate, &vstart);
-
-        if (frames >= framerate) {
-            std::chrono::_V2::system_clock::time_point finish = std::chrono::high_resolution_clock::now();
-            int64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
-            std::cout << (frames * 1.0e9 / duration) << " fps" << std::endl;
-            frames = 0;
-            start = finish;
-        }
+        fps.tick(framerate);
 
         audio.left.read(inl, N);
         if (audio.channels == 2)
@@ -631,8 +646,6 @@ int main(int argc, char* argv[])
 
             redraw(&audio, &video, outl, outr, freq);
         }
-
-        frames++;
     }
 
     close_x(&video);
