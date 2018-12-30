@@ -114,6 +114,7 @@ struct video_data {
     int screen;
     Window win;
     GC gc;
+    Atom close;
     Pixmap double_buffer = 0;
     unsigned int last_width = -1, last_height = -1;
 };
@@ -136,6 +137,9 @@ void init_x(video_data& video)
     XClearWindow(dis, win);
     XMapRaised(dis, win);
     XSetForeground(dis, gc, white);
+
+    Atom close = video.close = XInternAtom(dis, "WM_DELETE_WINDOW", False);
+    XSetWMProtocols(dis, win, &close, 1);
 };
 
 void close_x(video_data& video)
@@ -515,7 +519,8 @@ void redraw(spectrum& spec, video_data& video)
     while (XPending(dis) > 0) {
         XEvent event;
         XNextEvent(dis, &event);
-        if (event.type == KeyPress && XLookupKeysym(&event.xkey, 0) == XK_q) {
+        if ((event.type == KeyPress && XLookupKeysym(&event.xkey, 0) == XK_q)
+            || (event.type == ClientMessage && (Atom)event.xclient.data.l[0] == video.close)) {
             spec.audio->terminate = true;
             return;
         }
