@@ -230,6 +230,8 @@ struct color {
     int r{ 0 };
     int g{ 0 };
     int b{ 0 };
+
+    bool operator!=(const color& that) const { return r != that.r || g != that.g || b != that.b; }
 };
 
 struct audio_data {
@@ -385,9 +387,9 @@ struct freq_data {
     int x;
 };
 
-struct fft_data {
+class FFTData {
 public:
-    fft_data()
+    FFTData()
         : amp(new double[N1])
     {
         out = fftw_alloc_complex(HALF_N);
@@ -396,7 +398,7 @@ public:
         memset(out, 0, HALF_N * sizeof(fftw_complex));
     }
 
-    ~fft_data()
+    ~FFTData()
     {
         fftw_destroy_plan(plan);
         fftw_free(out);
@@ -416,29 +418,24 @@ private:
     double* in;
 };
 
-struct spectrum {
-    spectrum(audio_data* data)
+class Spectrum {
+public:
+    Spectrum(audio_data* data)
         : audio(data)
         , freq(new freq_data[N1])
     {
+        precalc();
     }
 
-    ~spectrum() { delete[] freq; }
+    ~Spectrum() { delete[] freq; }
 
-    void execute()
-    {
-        left.read(audio->left);
-        if (audio->channels == 2)
-            right.read(audio->right);
+    void precalc();
+    void process();
 
-        left.execute();
-        if (audio->channels == 2)
-            right.execute();
-    }
-
+public:
     audio_data* audio;
     freq_data* freq;
-    fft_data left, right;
+    FFTData left, right;
     int minK, maxK;
 };
 
@@ -449,18 +446,16 @@ inline double saw(double val, double p)
     return p * fabs(x - floor(x + 0.5));
 }
 
-void precalc(spectrum& spec)
+void Spectrum::precalc()
 {
-    freq_data* freq = spec.freq;
-    audio_data* audio = spec.audio;
     double maxFreq = N;
     double minFreq = audio->rate / maxFreq;
     double base = log(pow(2, 1.0 / 12.0));
     double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
 
     // Notes in [36, 108] range, i.e. 6 octaves
-    spec.minK = ceil(exp(35 * base) / (minFreq * fcoef));
-    spec.maxK = ceil(exp(108 * base) / (minFreq * fcoef));
+    minK = ceil(exp(35 * base) / (minFreq * fcoef));
+    maxK = ceil(exp(108 * base) / (minFreq * fcoef));
 
     for (int k = 1; k < N1; k++) {
         double frequency = k * minFreq;
@@ -485,12 +480,18 @@ void precalc(spectrum& spec)
     }
 }
 
-void process(spectrum& spec)
+void Spectrum::process()
 {
-    fftw_complex* outl = spec.left.out;
-    fftw_complex* outr = spec.right.out;
-    freq_data* freq = spec.freq;
-    int minK = spec.minK, maxK = spec.maxK;
+    left.read(audio->left);
+    if (audio->channels == 2)
+        right.read(audio->right);
+
+    left.execute();
+    if (audio->channels == 2)
+        right.execute();
+
+    fftw_complex* outl = left.out;
+    fftw_complex* outr = right.out;
     int maxF = minK;
     double maxAmp = 0;
 
@@ -502,16 +503,19 @@ void process(spectrum& spec)
             maxAmp = amp;
             maxF = k;
         }
-        spec.left.amp[k] = ampl;
-        spec.right.amp[k] = ampr;
+        left.amp[k] = ampl;
+        right.amp[k] = ampr;
     }
 
-    spec.audio->curColor = freq[maxF].c;
+    audio->curColor = freq[maxF].c;
 }
 
-void redraw(spectrum& spec, video_data& video)
+void redraw(Spectrum& spec, video_data& video)
 {
     Display* dis = video.dis;
+    if (dis == nullptr)
+        return;
+
     Window win = video.win;
     GC gc = video.gc;
     Pixmap double_buffer = video.double_buffer;
@@ -584,16 +588,18 @@ void* socket_send(void* data)
     audio_data* audio = (audio_data*)strip->audio;
     std::cout << "Connecting to " << strip->hostname << " as " << strip->resolved << std::endl;
 
-    int prevR = 0, prevG = 0, prevB = 0;
+    color col;
     while (!audio->terminate) {
-        VSync vsync(60);
+        VSync vsync(60); // Wait between checks
 
-        int maxR = audio->curColor.r, maxG = audio->curColor.g, maxB = audio->curColor.b;
-        if (prevR != maxR || prevG != maxG || prevB != maxB) {
+        if (col != audio->curColor) {
+            col = audio->curColor;
+            // std::cout << col.r << "," << col.g << "," << col.b << std::endl;
+
             int fd = socket_connect(strip->resolved, 80);
             if (fd != 0) {
                 char buffer[1024] = { 0 };
-                int len = sprintf(buffer, "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", strip->api_key, maxR, maxG, maxB);
+                int len = sprintf(buffer, "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", strip->api_key, col.r, col.g, col.b);
                 // std::cout << buffer << std::endl;
 
                 write(fd, buffer, len);
@@ -603,11 +609,6 @@ void* socket_send(void* data)
                 shutdown(fd, SHUT_RDWR);
                 close(fd);
             }
-
-            // std::cout << maxR << "," << maxG << "," << maxB << std::endl;
-            prevR = maxR;
-            prevG = maxG;
-            prevB = maxB;
         }
     }
 
@@ -652,13 +653,11 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
-    // Init Video
+    // Init X11
     init_x(video);
-    Display* dis = video.dis;
 
     // Init FFT
-    spectrum spec(&audio);
-    precalc(spec);
+    Spectrum spec(&audio);
 
     pthread_create(&input_thread, NULL, input_alsa, (void*)&audio);
     for (espurna& strip : audio.strip)
@@ -670,11 +669,8 @@ int main(int argc, char* argv[])
         VSync vsync(framerate, &vstart);
         fps.tick(framerate);
 
-        spec.execute();
-        process(spec);
-
-        if (dis != nullptr)
-            redraw(spec, video);
+        spec.process();
+        redraw(spec, video);
     }
 
     pthread_join(input_thread, NULL);
