@@ -32,27 +32,6 @@
 #include <time.h>
 #include <unistd.h>
 
-int socket_connect(char* host, in_port_t port)
-{
-    sockaddr_in addr;
-    addr.sin_port = htons(port);
-    addr.sin_family = AF_INET;
-    inet_aton(host, &addr.sin_addr);
-    int sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP), on;
-    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&on, sizeof(int));
-
-    if (sock == -1) {
-        perror("setsockopt");
-        return 0;
-    }
-
-    if (connect(sock, (sockaddr*)&addr, sizeof(sockaddr_in)) == -1) {
-        perror("connect");
-        return 0;
-    }
-    return sock;
-}
-
 class VSync {
 private:
     std::chrono::_V2::system_clock::time_point start;
@@ -199,33 +178,6 @@ constexpr int N = 1 << M;
 constexpr int N1 = N / 2;
 constexpr int HALF_N = N / 2 + 1;
 
-struct espurna {
-    espurna(char* host, char* api, char* addr, void* data)
-        : hostname(host)
-        , api_key(api)
-        , audio(data)
-    {
-        strcpy(resolved, addr);
-    }
-
-    static espurna lookup(char* host, char* api, void* data)
-    {
-        hostent* host_entry = gethostbyname(host);
-        if (host_entry == nullptr) {
-            fprintf(stderr, "Could not look up IP address for %s\n", host);
-            exit(EXIT_FAILURE);
-        }
-        char* addr = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
-        return espurna(host, api, addr, data);
-    }
-
-    char* hostname;
-    char* api_key;
-    char resolved[16];
-    pthread_t p_thread;
-    void* audio;
-};
-
 struct color {
     int r{ 0 };
     int g{ 0 };
@@ -239,8 +191,6 @@ struct audio_data {
     unsigned int rate{ 0 };
     unsigned int channels{ 2 };
     bool terminate{ false }; // shared variable used to terminate audio thread
-
-    std::list<espurna> strip;
 
     SlidingWindow<double> left{ 65536 };
     SlidingWindow<double> right{ 65536 };
@@ -496,15 +446,13 @@ void Spectrum::process()
     double maxAmp = 0;
 
     for (int k = minK; k < maxK; k++) {
-        double ampl = hypot(outl[k][0], outl[k][1]);
-        double ampr = hypot(outr[k][0], outr[k][1]);
+        double ampl = left.amp[k] = hypot(outl[k][0], outl[k][1]);
+        double ampr = right.amp[k] = hypot(outr[k][0], outr[k][1]);
         double amp = std::max(ampl, ampr);
         if (amp > maxAmp) {
             maxAmp = amp;
             maxF = k;
         }
-        left.amp[k] = ampl;
-        right.amp[k] = ampr;
     }
 
     audio->curColor = freq[maxF].c;
@@ -582,10 +530,58 @@ void redraw(Spectrum& spec, video_data& video)
     XFlush(dis);
 }
 
+struct espurna {
+    espurna(char* host, char* api, char* addr, audio_data* data)
+        : hostname(host)
+        , api_key(api)
+        , audio(data)
+    {
+        strcpy(resolved, addr);
+    }
+
+    static espurna lookup(char* host, char* api, audio_data* data)
+    {
+        hostent* host_entry = gethostbyname(host);
+        if (host_entry == nullptr) {
+            fprintf(stderr, "Could not look up IP address for %s\n", host);
+            exit(EXIT_FAILURE);
+        }
+        char* addr = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
+        return espurna(host, api, addr, data);
+    }
+
+    char* hostname;
+    char* api_key;
+    char resolved[16];
+    pthread_t p_thread;
+    audio_data* audio;
+};
+
+int socket_connect(char* host, in_port_t port)
+{
+    sockaddr_in addr;
+    addr.sin_port = htons(port);
+    addr.sin_family = AF_INET;
+    inet_aton(host, &addr.sin_addr);
+    int sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP), on;
+    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&on, sizeof(int));
+
+    if (sock == -1) {
+        perror("setsockopt");
+        return 0;
+    }
+
+    if (connect(sock, (sockaddr*)&addr, sizeof(sockaddr_in)) == -1) {
+        perror("connect");
+        return 0;
+    }
+    return sock;
+}
+
 void* socket_send(void* data)
 {
     espurna* strip = (espurna*)data;
-    audio_data* audio = (audio_data*)strip->audio;
+    audio_data* audio = strip->audio;
     std::cout << "Connecting to " << strip->hostname << " as " << strip->resolved << std::endl;
 
     color col;
@@ -630,10 +626,7 @@ void sig_handler(int sig_no)
 
 int main(int argc, char* argv[])
 {
-    pthread_t input_thread;
-    const int framerate = 60;
     audio_data audio;
-    video_data video;
 
     // Handle Ctrl+C
     struct sigaction action;
@@ -643,8 +636,9 @@ int main(int argc, char* argv[])
     sigaction(SIGINT, &action, NULL);
 
     // Init Network
+    std::list<espurna> strips;
     for (int k = 0; k + 2 < argc; k += 2)
-        audio.strip.push_back(espurna::lookup(argv[k + 1], argv[k + 2], &audio));
+        strips.push_back(espurna::lookup(argv[k + 1], argv[k + 2], &audio));
 
     // Init Audio
     initialize_audio_parameters(&audio);
@@ -654,15 +648,18 @@ int main(int argc, char* argv[])
     }
 
     // Init X11
+    video_data video;
     init_x(video);
 
     // Init FFT
     Spectrum spec(&audio);
 
+    pthread_t input_thread;
     pthread_create(&input_thread, NULL, input_alsa, (void*)&audio);
-    for (espurna& strip : audio.strip)
+    for (espurna& strip : strips)
         pthread_create(&strip.p_thread, NULL, socket_send, (void*)&strip);
 
+    const int framerate = 60;
     FPS fps;
     std::chrono::_V2::system_clock::time_point vstart = std::chrono::high_resolution_clock::now();
     while (!audio.terminate) {
@@ -674,7 +671,7 @@ int main(int argc, char* argv[])
     }
 
     pthread_join(input_thread, NULL);
-    for (espurna& strip : audio.strip)
+    for (espurna& strip : strips)
         pthread_join(strip.p_thread, NULL);
 
     close_x(video);
