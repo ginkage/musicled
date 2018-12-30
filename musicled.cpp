@@ -1,48 +1,36 @@
+#include <X11/Xlib.h>
+#include <X11/Xos.h>
+#include <X11/Xutil.h>
+#include <algorithm>
 #include <alloca.h>
 #include <alsa/asoundlib.h>
+#include <arpa/inet.h>
+#include <chrono>
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <fftw3.h>
 #include <getopt.h>
+#include <iostream>
+#include <list>
 #include <math.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-
-#include <algorithm>
-#include <chrono>
-#include <iostream>
-#include <list>
-
-#include <X11/Xlib.h>
-#include <X11/Xos.h>
-#include <X11/Xutil.h>
-#include <stdio.h>
-
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
-#include <sys/socket.h>
-#include <sys/types.h>
 
 int socket_connect(char* host, in_port_t port)
 {
@@ -610,10 +598,6 @@ int main(int argc, char* argv[])
         pthread_create(&strip.p_thread, NULL, socket_send, (void*)&strip);
     }
 
-    XEvent event; /* the XEvent declaration !!! */
-    KeySym key; /* a dealie-bob to handle KeyPress Events */
-    char text[255]; /* a char buffer for KeyPress Events */
-
     FPS fps;
     std::chrono::_V2::system_clock::time_point vstart = std::chrono::high_resolution_clock::now();
     while (!audio.terminate) {
@@ -631,17 +615,10 @@ int main(int argc, char* argv[])
 
         if (dis != nullptr) {
             while (XPending(dis) > 0) {
+                XEvent event;
                 XNextEvent(dis, &event);
-
-                switch (event.type) {
-                case Expose:
-                    // redraw(&audio, &video, outl, outr, freq);
-                    break;
-                case KeyPress:
-                    if (XLookupString(&event.xkey, text, 255, &key, 0) == 1 && text[0] == 'q')
-                        audio.terminate = true;
-                    break;
-                }
+                if (event.type == KeyPress && XLookupKeysym(&event.xkey, 0) == XK_q)
+                    audio.terminate = true;
             }
 
             redraw(&audio, &video, outl, outr, freq);
