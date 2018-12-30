@@ -118,39 +118,34 @@ struct video_data {
     unsigned int last_width = -1, last_height = -1;
 };
 
-void init_x(video_data* video)
+void init_x(video_data& video)
 {
-    Display* dis = XOpenDisplay((char*)0);
+    Display* dis = video.dis = XOpenDisplay((char*)0);
     if (dis == nullptr)
         return;
 
-    int screen = DefaultScreen(dis);
+    int screen = video.screen = DefaultScreen(dis);
     unsigned long black = BlackPixel(dis, screen), white = WhitePixel(dis, screen);
 
-    Window win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 648, 360, 0, black, black);
+    Window win = video.win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 648, 360, 0, black, black);
     XSetStandardProperties(dis, win, "MusicLED", "Music", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
 
-    GC gc = XCreateGC(dis, win, 0, 0);
+    GC gc = video.gc = XCreateGC(dis, win, 0, 0);
 
     XClearWindow(dis, win);
     XMapRaised(dis, win);
     XSetForeground(dis, gc, white);
-
-    video->dis = dis;
-    video->screen = screen;
-    video->win = win;
-    video->gc = gc;
 };
 
-void close_x(video_data* video)
+void close_x(video_data& video)
 {
-    if (video->dis == nullptr)
+    if (video.dis == nullptr)
         return;
 
-    XFreeGC(video->dis, video->gc);
-    XDestroyWindow(video->dis, video->win);
-    XCloseDisplay(video->dis);
+    XFreeGC(video.dis, video.gc);
+    XDestroyWindow(video.dis, video.win);
+    XCloseDisplay(video.dis);
 }
 
 template <class T> class SlidingWindow {
@@ -486,21 +481,52 @@ void precalc(spectrum& spec)
     }
 }
 
-void redraw(spectrum& spec, video_data& video)
+void process(spectrum& spec)
 {
-    audio_data* audio = spec.audio;
     fftw_complex* outl = spec.left.out;
     fftw_complex* outr = spec.right.out;
     freq_data* freq = spec.freq;
+    int minK = spec.minK, maxK = spec.maxK;
+    int maxF = minK;
+    double maxAmp = 0;
+
+    for (int k = minK; k < maxK; k++) {
+        double ampl = hypot(outl[k][0], outl[k][1]);
+        double ampr = hypot(outr[k][0], outr[k][1]);
+        double amp = std::max(ampl, ampr);
+        if (amp > maxAmp) {
+            maxAmp = amp;
+            maxF = k;
+        }
+        spec.left.amp[k] = ampl;
+        spec.right.amp[k] = ampr;
+    }
+
+    spec.audio->curColor = freq[maxF].c;
+}
+
+void redraw(spectrum& spec, video_data& video)
+{
     Display* dis = video.dis;
     Window win = video.win;
     GC gc = video.gc;
     Pixmap double_buffer = video.double_buffer;
+
+    while (XPending(dis) > 0) {
+        XEvent event;
+        XNextEvent(dis, &event);
+        if (event.type == KeyPress && XLookupKeysym(&event.xkey, 0) == XK_q) {
+            spec.audio->terminate = true;
+            return;
+        }
+    }
+
     unsigned int width, height, bw, dr;
     Window root;
     int xx, yy;
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
 
+    freq_data* freq = spec.freq;
     double minNote = 34;
     double maxNote = 110;
     double kx = width / (maxNote - minNote);
@@ -523,24 +549,14 @@ void redraw(spectrum& spec, video_data& video)
     XSetForeground(dis, gc, 0);
     XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
 
-    int minK = spec.minK, maxK = spec.maxK;
-    double maxAmp = 0;
-    int maxF = minK;
     int lastx = -1;
     double prevAmpL = 0;
     double prevAmpR = 0;
+    int minK = spec.minK, maxK = spec.maxK;
 
     for (int k = minK; k < maxK; k++) {
-        double ampl = hypot(outl[k][0], outl[k][1]);
-        double ampr = hypot(outr[k][0], outr[k][1]);
-        double amp = std::max(ampl, ampr);
-        if (amp > maxAmp) {
-            maxAmp = amp;
-            maxF = k;
-        }
-
-        prevAmpL = std::max(prevAmpL, ampl);
-        prevAmpR = std::max(prevAmpR, ampr);
+        prevAmpL = std::max(prevAmpL, spec.left.amp[k]);
+        prevAmpR = std::max(prevAmpR, spec.right.amp[k]);
         int x = freq[k].x;
         if (lastx < x) {
             lastx = x + 3;
@@ -552,8 +568,6 @@ void redraw(spectrum& spec, video_data& video)
             XDrawLine(dis, double_buffer, gc, x, height * 0.5 - yl, x, height * 0.5 + yr);
         }
     }
-
-    audio->curColor = freq[maxF].c;
 
     XCopyArea(dis, double_buffer, win, gc, 0, 0, width, height, 0, 0);
     XFlush(dis);
@@ -585,7 +599,7 @@ void* socket_send(void* data)
                 close(fd);
             }
 
-            std::cout << maxR << "," << maxG << "," << maxB << std::endl;
+            // std::cout << maxR << "," << maxG << "," << maxB << std::endl;
             prevR = maxR;
             prevG = maxG;
             prevB = maxB;
@@ -610,39 +624,40 @@ void sig_handler(int sig_no)
 
 int main(int argc, char* argv[])
 {
-    pthread_t p_thread;
-    int framerate = 60;
+    pthread_t input_thread;
+    const int framerate = 60;
     audio_data audio;
     video_data video;
 
-    for (int k = 0; k + 2 < argc; k += 2) {
-        audio.strip.push_back(espurna::lookup(argv[k + 1], argv[k + 2], &audio));
-    }
-
-    init_x(&video);
-    Display* dis = video.dis;
-
-    // general: handle Ctrl+C
+    // Handle Ctrl+C
     struct sigaction action;
     memset(&action, 0, sizeof(action));
     action.sa_handler = &sig_handler;
     g_audio = &audio;
     sigaction(SIGINT, &action, NULL);
 
+    // Init Network
+    for (int k = 0; k + 2 < argc; k += 2)
+        audio.strip.push_back(espurna::lookup(argv[k + 1], argv[k + 2], &audio));
+
+    // Init Audio
     initialize_audio_parameters(&audio);
     if (audio.format == -1 || audio.rate == 0) {
         fprintf(stderr, "Could not get rate and/or format, quiting...\n");
         exit(EXIT_FAILURE);
     }
 
-    // fft: planning to rock
+    // Init Video
+    init_x(video);
+    Display* dis = video.dis;
+
+    // Init FFT
     spectrum spec(&audio);
     precalc(spec);
 
-    pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
-    for (espurna& strip : audio.strip) {
+    pthread_create(&input_thread, NULL, input_alsa, (void*)&audio);
+    for (espurna& strip : audio.strip)
         pthread_create(&strip.p_thread, NULL, socket_send, (void*)&strip);
-    }
 
     FPS fps;
     std::chrono::_V2::system_clock::time_point vstart = std::chrono::high_resolution_clock::now();
@@ -651,25 +666,17 @@ int main(int argc, char* argv[])
         fps.tick(framerate);
 
         spec.execute();
+        process(spec);
 
-        if (dis != nullptr) {
-            while (XPending(dis) > 0) {
-                XEvent event;
-                XNextEvent(dis, &event);
-                if (event.type == KeyPress && XLookupKeysym(&event.xkey, 0) == XK_q)
-                    audio.terminate = true;
-            }
-
+        if (dis != nullptr)
             redraw(spec, video);
-        }
     }
 
-    close_x(&video);
-
-    pthread_join(p_thread, NULL);
-    for (espurna& strip : audio.strip) {
+    pthread_join(input_thread, NULL);
+    for (espurna& strip : audio.strip)
         pthread_join(strip.p_thread, NULL);
-    }
+
+    close_x(video);
 
     return 0;
 }
