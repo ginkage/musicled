@@ -187,26 +187,35 @@ struct color {
 };
 
 struct audio_data {
+public:
+    audio_data() { init(); }
+
+    ~audio_data() { shutdown(); }
+
     int format{ -1 };
     unsigned int rate{ 0 };
     unsigned int channels{ 2 };
-    bool terminate{ false }; // shared variable used to terminate audio thread
+
+    snd_pcm_t* handle;
+    snd_pcm_uframes_t frames;
 
     SlidingWindow<double> left{ 65536 };
     SlidingWindow<double> right{ 65536 };
 
+    bool terminate{ false }; // shared variable used to terminate audio thread
     color curColor;
 
-    snd_pcm_t* handle;
-    snd_pcm_uframes_t frames;
+private:
+    void init();
+    void shutdown();
 };
 
-static void initialize_audio_parameters(audio_data* audio)
+void audio_data::init()
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
 
     // alsa: open device to capture audio
-    int err = snd_pcm_open(&audio->handle, audio_source, SND_PCM_STREAM_CAPTURE, 0);
+    int err = snd_pcm_open(&handle, audio_source, SND_PCM_STREAM_CAPTURE, 0);
     if (err < 0) {
         fprintf(stderr, "error opening stream: %s\n", snd_strerror(err));
         exit(EXIT_FAILURE);
@@ -214,73 +223,78 @@ static void initialize_audio_parameters(audio_data* audio)
 
     snd_pcm_hw_params_t* params;
     snd_pcm_hw_params_alloca(&params); // assembling params
-    snd_pcm_hw_params_any(audio->handle, params); // setting defaults or something
+    snd_pcm_hw_params_any(handle, params); // setting defaults or something
 
     // interleaved mode right left right left
-    snd_pcm_hw_params_set_access(audio->handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
+    snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
 
     // trying to set 16bit
-    snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
-    snd_pcm_hw_params_set_format(audio->handle, params, format);
+    snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
+    snd_pcm_hw_params_set_format(handle, params, pcm_format);
 
     // assuming stereo
-    unsigned int channels = 2;
-    snd_pcm_hw_params_set_channels(audio->handle, params, channels);
+    unsigned int pcm_channels = 2;
+    snd_pcm_hw_params_set_channels(handle, params, pcm_channels);
 
     // trying our rate
-    unsigned int sample_rate = 44100;
-    snd_pcm_hw_params_set_rate_near(audio->handle, params, &sample_rate, NULL);
+    unsigned int pcm_rate = 44100;
+    snd_pcm_hw_params_set_rate_near(handle, params, &pcm_rate, NULL);
 
     // number of frames per read
-    snd_pcm_uframes_t frames = 256;
-    snd_pcm_hw_params_set_period_size_near(audio->handle, params, &frames, NULL);
+    snd_pcm_uframes_t pcm_frames = 256;
+    snd_pcm_hw_params_set_period_size_near(handle, params, &pcm_frames, NULL);
 
-    err = snd_pcm_hw_params(audio->handle, params); // attempting to set params
+    err = snd_pcm_hw_params(handle, params); // attempting to set params
     if (err < 0) {
         fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(err));
         exit(EXIT_FAILURE);
     }
 
-    err = snd_pcm_prepare(audio->handle);
+    err = snd_pcm_prepare(handle);
     if (err < 0) {
         fprintf(stderr, "cannot prepare audio interface for use (%s)\n", snd_strerror(err));
         exit(EXIT_FAILURE);
     }
 
     // getting actual format
-    snd_pcm_hw_params_get_format(params, &format);
+    snd_pcm_hw_params_get_format(params, &pcm_format);
 
     // converting result to number of bits
-    switch (format) {
+    switch (pcm_format) {
     case SND_PCM_FORMAT_S8:
     case SND_PCM_FORMAT_U8:
-        audio->format = 8;
+        format = 8;
         break;
     case SND_PCM_FORMAT_S16_LE:
     case SND_PCM_FORMAT_S16_BE:
     case SND_PCM_FORMAT_U16_LE:
     case SND_PCM_FORMAT_U16_BE:
-        audio->format = 16;
+        format = 16;
         break;
     case SND_PCM_FORMAT_S24_LE:
     case SND_PCM_FORMAT_S24_BE:
     case SND_PCM_FORMAT_U24_LE:
     case SND_PCM_FORMAT_U24_BE:
-        audio->format = 24;
+        format = 24;
         break;
     case SND_PCM_FORMAT_S32_LE:
     case SND_PCM_FORMAT_S32_BE:
     case SND_PCM_FORMAT_U32_LE:
     case SND_PCM_FORMAT_U32_BE:
-        audio->format = 32;
+        format = 32;
         break;
     default:
         break;
     }
 
-    snd_pcm_hw_params_get_rate(params, &audio->rate, NULL);
-    snd_pcm_hw_params_get_period_size(params, &audio->frames, NULL);
-    snd_pcm_hw_params_get_channels(params, &audio->channels);
+    snd_pcm_hw_params_get_rate(params, &rate, NULL);
+    snd_pcm_hw_params_get_period_size(params, &frames, NULL);
+    snd_pcm_hw_params_get_channels(params, &channels);
+
+    if (format == -1 || rate == 0) {
+        fprintf(stderr, "Could not get rate and/or format, quiting...\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 void* input_alsa(void* data)
@@ -324,11 +338,12 @@ void* input_alsa(void* data)
         }
     }
 
-    snd_pcm_close(audio->handle);
     delete[] buffer;
 
     return NULL;
 }
+
+void audio_data::shutdown() { snd_pcm_close(handle); }
 
 struct freq_data {
     color c;
@@ -626,7 +641,11 @@ void sig_handler(int sig_no)
 
 int main(int argc, char* argv[])
 {
+    // Init Audio
     audio_data audio;
+
+    // Init FFT
+    Spectrum spec(&audio);
 
     // Handle Ctrl+C
     struct sigaction action;
@@ -640,19 +659,9 @@ int main(int argc, char* argv[])
     for (int k = 0; k + 2 < argc; k += 2)
         strips.push_back(espurna::lookup(argv[k + 1], argv[k + 2], &audio));
 
-    // Init Audio
-    initialize_audio_parameters(&audio);
-    if (audio.format == -1 || audio.rate == 0) {
-        fprintf(stderr, "Could not get rate and/or format, quiting...\n");
-        exit(EXIT_FAILURE);
-    }
-
     // Init X11
     video_data video;
     init_x(video);
-
-    // Init FFT
-    Spectrum spec(&audio);
 
     pthread_t input_thread;
     pthread_create(&input_thread, NULL, input_alsa, (void*)&audio);
