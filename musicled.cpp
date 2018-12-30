@@ -209,6 +209,17 @@ struct espurna {
         strcpy(resolved, addr);
     }
 
+    static espurna lookup(char* host, char* api, void* data)
+    {
+        hostent* host_entry = gethostbyname(host);
+        if (host_entry == nullptr) {
+            fprintf(stderr, "Could not look up IP address for %s\n", host);
+            exit(EXIT_FAILURE);
+        }
+        char* addr = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
+        return espurna(host, api, addr, data);
+    }
+
     char* hostname;
     char* api_key;
     char resolved[16];
@@ -605,15 +616,7 @@ int main(int argc, char* argv[])
     video_data video;
 
     for (int k = 0; k + 2 < argc; k += 2) {
-        char* hostname = argv[k + 1];
-        char* api = argv[k + 2];
-        hostent* host_entry = gethostbyname(hostname);
-        if (host_entry == nullptr) {
-            fprintf(stderr, "Could not look up IP address for %s\n", hostname);
-            exit(EXIT_FAILURE);
-        }
-        char* addr = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
-        audio.strip.push_back(espurna(hostname, api, addr, &audio));
+        audio.strip.push_back(espurna::lookup(argv[k + 1], argv[k + 2], &audio));
     }
 
     init_x(&video);
