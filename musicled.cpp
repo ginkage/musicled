@@ -199,7 +199,6 @@ constexpr int M = 11;
 constexpr int N = 1 << M;
 constexpr int N1 = N / 2;
 constexpr int HALF_N = N / 2 + 1;
-constexpr int N2 = 2 * HALF_N;
 
 struct espurna {
     espurna(char* host, char* api, char* addr, void* data)
@@ -218,14 +217,16 @@ struct espurna {
 };
 
 struct color {
-    int r = 0, g = 0, b = 0;
+    int r{ 0 };
+    int g{ 0 };
+    int b{ 0 };
 };
 
 struct audio_data {
-    int format;
-    unsigned int rate;
-    unsigned int channels;
-    bool terminate; // shared variable used to terminate audio thread
+    int format{ -1 };
+    unsigned int rate{ 0 };
+    unsigned int channels{ 2 };
+    bool terminate{ false }; // shared variable used to terminate audio thread
 
     std::list<espurna> strip;
 
@@ -236,8 +237,6 @@ struct audio_data {
 
     snd_pcm_t* handle;
     snd_pcm_uframes_t frames;
-
-    int minK, maxK;
 };
 
 static void initialize_audio_parameters(audio_data* audio)
@@ -376,6 +375,63 @@ struct freq_data {
     int x;
 };
 
+struct fft_data {
+public:
+    fft_data()
+        : amp(new double[N1])
+    {
+        out = fftw_alloc_complex(HALF_N);
+        in = (double*)out;
+        plan = fftw_plan_dft_r2c_1d(N, in, out, FFTW_MEASURE);
+        memset(out, 0, HALF_N * sizeof(fftw_complex));
+    }
+
+    ~fft_data()
+    {
+        fftw_destroy_plan(plan);
+        fftw_free(out);
+        delete[] amp;
+    }
+
+    void read(SlidingWindow<double>& window) { window.read(in, N); }
+
+    void execute() { fftw_execute(plan); }
+
+public:
+    fftw_complex* out;
+    double* amp;
+
+private:
+    fftw_plan plan;
+    double* in;
+};
+
+struct spectrum {
+    spectrum(audio_data* data)
+        : audio(data)
+        , freq(new freq_data[N1])
+    {
+    }
+
+    ~spectrum() { delete[] freq; }
+
+    void execute()
+    {
+        left.read(audio->left);
+        if (audio->channels == 2)
+            right.read(audio->right);
+
+        left.execute();
+        if (audio->channels == 2)
+            right.execute();
+    }
+
+    audio_data* audio;
+    freq_data* freq;
+    fft_data left, right;
+    int minK, maxK;
+};
+
 // "Saw" function with specified range
 inline double saw(double val, double p)
 {
@@ -383,16 +439,18 @@ inline double saw(double val, double p)
     return p * fabs(x - floor(x + 0.5));
 }
 
-void precalc(freq_data* out, audio_data* audio)
+void precalc(spectrum& spec)
 {
+    freq_data* freq = spec.freq;
+    audio_data* audio = spec.audio;
     double maxFreq = N;
     double minFreq = audio->rate / maxFreq;
     double base = log(pow(2, 1.0 / 12.0));
     double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
 
     // Notes in [36, 108] range, i.e. 6 octaves
-    audio->minK = ceil(exp(35 * base) / (minFreq * fcoef));
-    audio->maxK = ceil(exp(108 * base) / (minFreq * fcoef));
+    spec.minK = ceil(exp(35 * base) / (minFreq * fcoef));
+    spec.maxK = ceil(exp(108 * base) / (minFreq * fcoef));
 
     for (int k = 1; k < N1; k++) {
         double frequency = k * minFreq;
@@ -413,16 +471,20 @@ void precalc(freq_data* out, audio_data* audio)
         f.note = note;
         f.ic = (((long)c.r) << 16) + (((long)c.g) << 8) + ((long)c.b);
 
-        out[k] = f;
+        freq[k] = f;
     }
 }
 
-void redraw(audio_data* audio, video_data* video, fftw_complex* outl, fftw_complex* outr, freq_data* freq)
+void redraw(spectrum& spec, video_data& video)
 {
-    Display* dis = video->dis;
-    Window win = video->win;
-    GC gc = video->gc;
-    Pixmap double_buffer = video->double_buffer;
+    audio_data* audio = spec.audio;
+    fftw_complex* outl = spec.left.out;
+    fftw_complex* outr = spec.right.out;
+    freq_data* freq = spec.freq;
+    Display* dis = video.dis;
+    Window win = video.win;
+    GC gc = video.gc;
+    Pixmap double_buffer = video.double_buffer;
     unsigned int width, height, bw, dr;
     Window root;
     int xx, yy;
@@ -433,14 +495,14 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* outl, fftw_compl
     double kx = width / (maxNote - minNote);
     double ky = height * 0.25 / 65536.0;
 
-    if (width != video->last_width || height != video->last_height) {
-        video->last_width = width;
-        video->last_height = height;
+    if (width != video.last_width || height != video.last_height) {
+        video.last_width = width;
+        video.last_height = height;
         if (double_buffer != 0) {
             XFreePixmap(dis, double_buffer);
         }
         double_buffer = XCreatePixmap(dis, win, width, height, 24);
-        video->double_buffer = double_buffer;
+        video.double_buffer = double_buffer;
 
         for (int k = 1; k < N1; k++) {
             freq[k].x = (int)((freq[k].note - minNote) * kx + 0.5);
@@ -450,7 +512,7 @@ void redraw(audio_data* audio, video_data* video, fftw_complex* outl, fftw_compl
     XSetForeground(dis, gc, 0);
     XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
 
-    int minK = audio->minK, maxK = audio->maxK;
+    int minK = spec.minK, maxK = spec.maxK;
     double maxAmp = 0;
     int maxF = minK;
     int lastx = -1;
@@ -524,7 +586,6 @@ void* socket_send(void* data)
 
 audio_data* g_audio;
 
-// general: handle signals
 void sig_handler(int sig_no)
 {
     if (sig_no == SIGINT) {
@@ -536,10 +597,8 @@ void sig_handler(int sig_no)
     }
 }
 
-// general: entry point
 int main(int argc, char* argv[])
 {
-    // general: define variables
     pthread_t p_thread;
     int framerate = 60;
     audio_data audio;
@@ -567,31 +626,15 @@ int main(int argc, char* argv[])
     g_audio = &audio;
     sigaction(SIGINT, &action, NULL);
 
-    // fft: planning to rock
-    fftw_complex* outl = fftw_alloc_complex(HALF_N);
-    fftw_complex* outr = fftw_alloc_complex(HALF_N);
-    double* inl = (double*)outl;
-    double* inr = (double*)outr;
-    fftw_plan pl = fftw_plan_dft_r2c_1d(N, inl, outl, FFTW_MEASURE);
-    fftw_plan pr = fftw_plan_dft_r2c_1d(N, inr, outr, FFTW_MEASURE);
-
-    // input: init
-    audio.format = -1;
-    audio.rate = 0;
-    audio.terminate = false;
-    audio.channels = 2;
-
     initialize_audio_parameters(&audio);
     if (audio.format == -1 || audio.rate == 0) {
         fprintf(stderr, "Could not get rate and/or format, quiting...\n");
         exit(EXIT_FAILURE);
     }
 
-    freq_data* freq = (freq_data*)malloc(N1 * sizeof(freq_data));
-    precalc(freq, &audio);
-
-    memset(outl, 0, HALF_N * sizeof(fftw_complex));
-    memset(outr, 0, HALF_N * sizeof(fftw_complex));
+    // fft: planning to rock
+    spectrum spec(&audio);
+    precalc(spec);
 
     pthread_create(&p_thread, NULL, input_alsa, (void*)&audio); // starting alsamusic listener
     for (espurna& strip : audio.strip) {
@@ -604,14 +647,7 @@ int main(int argc, char* argv[])
         VSync vsync(framerate, &vstart);
         fps.tick(framerate);
 
-        audio.left.read(inl, N);
-        if (audio.channels == 2)
-            audio.right.read(inr, N);
-
-        // process: execute FFT and sort frequency bands
-        fftw_execute(pl);
-        if (audio.channels == 2)
-            fftw_execute(pr);
+        spec.execute();
 
         if (dis != nullptr) {
             while (XPending(dis) > 0) {
@@ -621,7 +657,7 @@ int main(int argc, char* argv[])
                     audio.terminate = true;
             }
 
-            redraw(&audio, &video, outl, outr, freq);
+            redraw(spec, video);
         }
     }
 
@@ -631,11 +667,6 @@ int main(int argc, char* argv[])
     for (espurna& strip : audio.strip) {
         pthread_join(strip.p_thread, NULL);
     }
-    fftw_destroy_plan(pl);
-    fftw_destroy_plan(pr);
-    fftw_free(outl);
-    fftw_free(outr);
-    free(freq);
 
     return 0;
 }
