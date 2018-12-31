@@ -1,7 +1,6 @@
 #include <X11/Xlib.h>
 #include <X11/Xos.h>
 #include <X11/Xutil.h>
-#include <algorithm>
 #include <alloca.h>
 #include <alsa/asoundlib.h>
 #include <arpa/inet.h>
@@ -9,7 +8,6 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
-#include <fftw3.h>
 #include <getopt.h>
 #include <iostream>
 #include <list>
@@ -21,10 +19,8 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -32,61 +28,12 @@
 #include <time.h>
 #include <unistd.h>
 
-class VSync {
-private:
-    std::chrono::_V2::system_clock::time_point start;
-    std::chrono::_V2::system_clock::time_point* pstart;
-    int64_t frame_time;
-
-public:
-    VSync(int frame_rate, std::chrono::_V2::system_clock::time_point* prev = nullptr)
-        : pstart(prev)
-        , frame_time(1e9 / frame_rate)
-    {
-        start = (pstart != nullptr) ? (*pstart) : std::chrono::high_resolution_clock::now();
-    }
-
-    ~VSync()
-    {
-        std::chrono::_V2::system_clock::time_point finish = std::chrono::high_resolution_clock::now();
-        int64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
-
-        if (duration < frame_time) {
-            timespec req = {.tv_sec = 0, .tv_nsec = 0 };
-            req.tv_sec = 0;
-            req.tv_nsec = frame_time - duration;
-            nanosleep(&req, NULL);
-
-            if (pstart != nullptr)
-                *pstart = start + std::chrono::nanoseconds(frame_time);
-        } else if (pstart != nullptr)
-            *pstart = finish;
-    }
-};
-
-class FPS {
-private:
-    int frames;
-    std::chrono::_V2::system_clock::time_point start;
-
-public:
-    FPS()
-        : frames(-1)
-        , start(std::chrono::high_resolution_clock::now())
-    {
-    }
-
-    void tick(int framerate)
-    {
-        if (++frames >= framerate) {
-            std::chrono::_V2::system_clock::time_point finish = std::chrono::high_resolution_clock::now();
-            int64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
-            std::cout << (frames * 1.0e9 / duration) << " fps" << std::endl;
-            frames = 0;
-            start = finish;
-        }
-    }
-};
+#include "vsync.h"
+#include "fps.h"
+#include "sliding_window.h"
+#include "fft_data.h"
+#include "audio_data.h"
+#include "color.h"
 
 struct video_data {
     Display* dis;
@@ -129,172 +76,6 @@ void close_x(video_data& video)
     XFreeGC(video.dis, video.gc);
     XDestroyWindow(video.dis, video.win);
     XCloseDisplay(video.dis);
-}
-
-template <class T> class SlidingWindow {
-public:
-    SlidingWindow(int n)
-        : buffer(new T[n])
-        , size(n)
-        , pos(0)
-    {
-        memset(buffer, 0, n * sizeof(T));
-    }
-
-    ~SlidingWindow() { delete[] buffer; }
-
-    /* Replace oldest N values in the circular buffer with Values */
-    void write(T* values, int n)
-    {
-        for (int k, j = 0; j < n; j += k) {
-            k = std::min(pos + (n - j), size) - pos;
-            memcpy(buffer + pos, values + j, k * sizeof(T));
-            pos = (pos + k) % size;
-        }
-    }
-
-    /* Retrieve N latest Values */
-    void read(T* values, int n)
-    {
-        int first = pos - n;
-        while (first < 0)
-            first += size;
-
-        for (int k, j = 0; j < n; j += k) {
-            k = std::min(first + (n - j), size) - first;
-            memcpy(values + j, buffer + first, k * sizeof(T));
-            first = (first + k) % size;
-        }
-    }
-
-private:
-    T* buffer;
-    int size;
-    int pos; // Position just after the last added value
-};
-
-constexpr int M = 11;
-constexpr int N = 1 << M;
-constexpr int N1 = N / 2;
-constexpr int HALF_N = N / 2 + 1;
-
-struct color {
-    int r{ 0 };
-    int g{ 0 };
-    int b{ 0 };
-
-    bool operator!=(const color& that) const { return r != that.r || g != that.g || b != that.b; }
-};
-
-struct audio_data {
-public:
-    audio_data() { init(); }
-
-    ~audio_data() { shutdown(); }
-
-    int format{ -1 };
-    unsigned int rate{ 0 };
-    unsigned int channels{ 2 };
-
-    snd_pcm_t* handle;
-    snd_pcm_uframes_t frames;
-
-    SlidingWindow<double> left{ 65536 };
-    SlidingWindow<double> right{ 65536 };
-
-    bool terminate{ false }; // shared variable used to terminate audio thread
-    color curColor;
-
-private:
-    void init();
-    void shutdown();
-};
-
-void audio_data::init()
-{
-    const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
-
-    // alsa: open device to capture audio
-    int err = snd_pcm_open(&handle, audio_source, SND_PCM_STREAM_CAPTURE, 0);
-    if (err < 0) {
-        fprintf(stderr, "error opening stream: %s\n", snd_strerror(err));
-        exit(EXIT_FAILURE);
-    }
-
-    snd_pcm_hw_params_t* params;
-    snd_pcm_hw_params_alloca(&params); // assembling params
-    snd_pcm_hw_params_any(handle, params); // setting defaults or something
-
-    // interleaved mode right left right left
-    snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
-
-    // trying to set 16bit
-    snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
-    snd_pcm_hw_params_set_format(handle, params, pcm_format);
-
-    // assuming stereo
-    unsigned int pcm_channels = 2;
-    snd_pcm_hw_params_set_channels(handle, params, pcm_channels);
-
-    // trying our rate
-    unsigned int pcm_rate = 44100;
-    snd_pcm_hw_params_set_rate_near(handle, params, &pcm_rate, NULL);
-
-    // number of frames per read
-    snd_pcm_uframes_t pcm_frames = 256;
-    snd_pcm_hw_params_set_period_size_near(handle, params, &pcm_frames, NULL);
-
-    err = snd_pcm_hw_params(handle, params); // attempting to set params
-    if (err < 0) {
-        fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(err));
-        exit(EXIT_FAILURE);
-    }
-
-    err = snd_pcm_prepare(handle);
-    if (err < 0) {
-        fprintf(stderr, "cannot prepare audio interface for use (%s)\n", snd_strerror(err));
-        exit(EXIT_FAILURE);
-    }
-
-    // getting actual format
-    snd_pcm_hw_params_get_format(params, &pcm_format);
-
-    // converting result to number of bits
-    switch (pcm_format) {
-    case SND_PCM_FORMAT_S8:
-    case SND_PCM_FORMAT_U8:
-        format = 8;
-        break;
-    case SND_PCM_FORMAT_S16_LE:
-    case SND_PCM_FORMAT_S16_BE:
-    case SND_PCM_FORMAT_U16_LE:
-    case SND_PCM_FORMAT_U16_BE:
-        format = 16;
-        break;
-    case SND_PCM_FORMAT_S24_LE:
-    case SND_PCM_FORMAT_S24_BE:
-    case SND_PCM_FORMAT_U24_LE:
-    case SND_PCM_FORMAT_U24_BE:
-        format = 24;
-        break;
-    case SND_PCM_FORMAT_S32_LE:
-    case SND_PCM_FORMAT_S32_BE:
-    case SND_PCM_FORMAT_U32_LE:
-    case SND_PCM_FORMAT_U32_BE:
-        format = 32;
-        break;
-    default:
-        break;
-    }
-
-    snd_pcm_hw_params_get_rate(params, &rate, NULL);
-    snd_pcm_hw_params_get_period_size(params, &frames, NULL);
-    snd_pcm_hw_params_get_channels(params, &channels);
-
-    if (format == -1 || rate == 0) {
-        fprintf(stderr, "Could not get rate and/or format, quiting...\n");
-        exit(EXIT_FAILURE);
-    }
 }
 
 void* input_alsa(void* data)
@@ -343,44 +124,11 @@ void* input_alsa(void* data)
     return NULL;
 }
 
-void audio_data::shutdown() { snd_pcm_close(handle); }
-
 struct freq_data {
     color c;
     unsigned long ic;
     double note;
     int x;
-};
-
-class FFTData {
-public:
-    FFTData()
-        : amp(new double[N1])
-    {
-        out = fftw_alloc_complex(HALF_N);
-        in = (double*)out;
-        plan = fftw_plan_dft_r2c_1d(N, in, out, FFTW_MEASURE);
-        memset(out, 0, HALF_N * sizeof(fftw_complex));
-    }
-
-    ~FFTData()
-    {
-        fftw_destroy_plan(plan);
-        fftw_free(out);
-        delete[] amp;
-    }
-
-    void read(SlidingWindow<double>& window) { window.read(in, N); }
-
-    void execute() { fftw_execute(plan); }
-
-public:
-    fftw_complex* out;
-    double* amp;
-
-private:
-    fftw_plan plan;
-    double* in;
 };
 
 class Spectrum {
