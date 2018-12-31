@@ -1,10 +1,10 @@
 #ifndef __MUSICLED_FFT_DATA_H__
 #define __MUSICLED_FFT_DATA_H__
 
+#include "sliding_window.h"
+
 #include <fftw3.h>
 #include <string.h>
-
-#include "sliding_window.h"
 
 constexpr int M = 11;
 constexpr int N = 1 << M;

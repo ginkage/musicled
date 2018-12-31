@@ -1,10 +1,10 @@
 #ifndef __MUSICLED_AUDIO_DATA_H__
 #define __MUSICLED_AUDIO_DATA_H__
 
-#include <alsa/asoundlib.h>
-
-#include "sliding_window.h"
 #include "color.h"
+#include "sliding_window.h"
+
+#include <alsa/asoundlib.h>
 
 struct audio_data {
     audio_data();

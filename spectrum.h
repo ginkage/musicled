@@ -2,8 +2,8 @@
 #define __MUSICLED_SPECTRUM_H__
 
 #include "audio_data.h"
-#include "freq_data.h"
 #include "fft_data.h"
+#include "freq_data.h"
 
 class Spectrum {
 public:

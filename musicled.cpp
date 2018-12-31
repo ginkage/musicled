@@ -1,6 +1,10 @@
-#include <X11/Xlib.h>
-#include <X11/Xos.h>
-#include <X11/Xutil.h>
+#include "audio_data.h"
+#include "color.h"
+#include "fps.h"
+#include "spectrum.h"
+#include "video_data.h"
+#include "vsync.h"
+
 #include <alloca.h>
 #include <alsa/asoundlib.h>
 #include <arpa/inet.h>
@@ -27,55 +31,6 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "audio_data.h"
-#include "color.h"
-#include "fps.h"
-#include "spectrum.h"
-#include "vsync.h"
-
-struct video_data {
-    Display* dis;
-    int screen;
-    Window win;
-    GC gc;
-    Atom close;
-    Pixmap double_buffer = 0;
-    unsigned int last_width = -1, last_height = -1;
-};
-
-void init_x(video_data& video)
-{
-    Display* dis = video.dis = XOpenDisplay((char*)0);
-    if (dis == nullptr)
-        return;
-
-    int screen = video.screen = DefaultScreen(dis);
-    unsigned long black = BlackPixel(dis, screen), white = WhitePixel(dis, screen);
-
-    Window win = video.win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 648, 360, 0, black, black);
-    XSetStandardProperties(dis, win, "MusicLED", "Music", None, NULL, 0, NULL);
-    XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
-
-    GC gc = video.gc = XCreateGC(dis, win, 0, 0);
-
-    XClearWindow(dis, win);
-    XMapRaised(dis, win);
-    XSetForeground(dis, gc, white);
-
-    Atom close = video.close = XInternAtom(dis, "WM_DELETE_WINDOW", False);
-    XSetWMProtocols(dis, win, &close, 1);
-};
-
-void close_x(video_data& video)
-{
-    if (video.dis == nullptr)
-        return;
-
-    XFreeGC(video.dis, video.gc);
-    XDestroyWindow(video.dis, video.win);
-    XCloseDisplay(video.dis);
-}
 
 void* input_alsa(void* data)
 {
@@ -121,78 +76,6 @@ void* input_alsa(void* data)
     delete[] buffer;
 
     return NULL;
-}
-
-void redraw(Spectrum& spec, video_data& video)
-{
-    Display* dis = video.dis;
-    if (dis == nullptr)
-        return;
-
-    Window win = video.win;
-    GC gc = video.gc;
-    Pixmap double_buffer = video.double_buffer;
-
-    while (XPending(dis) > 0) {
-        XEvent event;
-        XNextEvent(dis, &event);
-        if ((event.type == KeyPress && XLookupKeysym(&event.xkey, 0) == XK_q)
-            || (event.type == ClientMessage && (Atom)event.xclient.data.l[0] == video.close)) {
-            spec.audio->terminate = true;
-            return;
-        }
-    }
-
-    unsigned int width, height, bw, dr;
-    Window root;
-    int xx, yy;
-    XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
-
-    freq_data* freq = spec.freq;
-    double minNote = 34;
-    double maxNote = 110;
-    double kx = width / (maxNote - minNote);
-    double ky = height * 0.25 / 65536.0;
-
-    if (width != video.last_width || height != video.last_height) {
-        video.last_width = width;
-        video.last_height = height;
-        if (double_buffer != 0) {
-            XFreePixmap(dis, double_buffer);
-        }
-        double_buffer = XCreatePixmap(dis, win, width, height, 24);
-        video.double_buffer = double_buffer;
-
-        for (int k = 1; k < N1; k++) {
-            freq[k].x = (int)((freq[k].note - minNote) * kx + 0.5);
-        }
-    }
-
-    XSetForeground(dis, gc, 0);
-    XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
-
-    int lastx = -1;
-    double prevAmpL = 0;
-    double prevAmpR = 0;
-    int minK = spec.minK, maxK = spec.maxK;
-
-    for (int k = minK; k < maxK; k++) {
-        prevAmpL = std::max(prevAmpL, spec.left.amp[k]);
-        prevAmpR = std::max(prevAmpR, spec.right.amp[k]);
-        int x = freq[k].x;
-        if (lastx < x) {
-            lastx = x + 3;
-            int yl = (int)(prevAmpL * ky + 0.5);
-            int yr = (int)(prevAmpR * ky + 0.5);
-            prevAmpL = 0;
-            prevAmpR = 0;
-            XSetForeground(dis, gc, freq[k].ic);
-            XDrawLine(dis, double_buffer, gc, x, height * 0.5 - yl, x, height * 0.5 + yr);
-        }
-    }
-
-    XCopyArea(dis, double_buffer, win, gc, 0, 0, width, height, 0, 0);
-    XFlush(dis);
 }
 
 struct espurna {
@@ -311,7 +194,6 @@ int main(int argc, char* argv[])
 
     // Init X11
     video_data video;
-    init_x(video);
 
     pthread_t input_thread;
     pthread_create(&input_thread, NULL, input_alsa, (void*)&audio);
@@ -324,16 +206,13 @@ int main(int argc, char* argv[])
     while (!audio.terminate) {
         VSync vsync(framerate, &vstart);
         fps.tick(framerate);
-
         spec.process();
-        redraw(spec, video);
+        video.redraw(spec);
     }
 
     pthread_join(input_thread, NULL);
     for (espurna& strip : strips)
         pthread_join(strip.p_thread, NULL);
-
-    close_x(video);
 
     return 0;
 }
