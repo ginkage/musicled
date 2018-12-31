@@ -1,7 +1,7 @@
+#include "audio_data.h"
+
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "audio_data.h"
 
 audio_data::audio_data()
 {
@@ -91,4 +91,3 @@ audio_data::audio_data()
 }
 
 audio_data::~audio_data() { snd_pcm_close(handle); }
-

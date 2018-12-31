@@ -19,4 +19,3 @@ FFTData::~FFTData()
 void FFTData::read(SlidingWindow<double>& window) { window.read(in, N); }
 
 void FFTData::execute() { fftw_execute(plan); }
-
