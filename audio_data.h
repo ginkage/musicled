@@ -7,7 +7,7 @@
 #include <alsa/asoundlib.h>
 #include <pthread.h>
 
-struct audio_data {
+class audio_data {
 public:
     audio_data(global_state* state);
     ~audio_data();

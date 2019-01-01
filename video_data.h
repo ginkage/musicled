@@ -6,7 +6,7 @@
 
 #include <X11/Xlib.h>
 
-struct video_data {
+class video_data {
 public:
     video_data(global_state* state);
     ~video_data();

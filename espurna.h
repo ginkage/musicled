@@ -5,7 +5,7 @@
 
 #include <pthread.h>
 
-struct espurna {
+class espurna {
 public:
     espurna(char* host, char* api, global_state* state);
     void start_thread();
