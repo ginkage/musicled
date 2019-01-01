@@ -10,6 +10,8 @@ struct video_data {
 public:
     video_data(global_state* state);
     ~video_data();
+    bool handle_input();
+    void handle_resize(Spectrum& spec);
     void redraw(Spectrum& spec);
 
 private:

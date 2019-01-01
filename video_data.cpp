@@ -38,10 +38,10 @@ video_data::~video_data()
     XCloseDisplay(dis);
 }
 
-void video_data::redraw(Spectrum& spec)
+bool video_data::handle_input()
 {
     if (dis == nullptr)
-        return;
+        return false;
 
     while (XPending(dis) > 0) {
         XEvent event;
@@ -49,21 +49,25 @@ void video_data::redraw(Spectrum& spec)
         if ((event.type == KeyPress && XLookupKeysym(&event.xkey, 0) == XK_q)
             || (event.type == ClientMessage && (Atom)event.xclient.data.l[0] == close)) {
             global->terminate = true;
-            return;
+            return false;
         }
     }
 
+    return true;
+}
+
+void video_data::handle_resize(Spectrum& spec)
+{
     unsigned int width, height, bw, dr;
     Window root;
     int xx, yy;
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
 
     freq_data* freq = spec.freq;
+    int minK = spec.minK, maxK = spec.maxK;
     double minNote = 34;
     double maxNote = 110;
     double kx = width / (maxNote - minNote);
-    double ky = height * 0.25 / 65536.0;
-    int minK = spec.minK, maxK = spec.maxK;
 
     if (width != last_width || height != last_height) {
         last_width = width;
@@ -75,17 +79,30 @@ void video_data::redraw(Spectrum& spec)
         for (int k = minK; k < maxK; k++)
             freq[k].x = (int)((freq[k].note - minNote) * kx + 0.5);
     }
+}
+
+void video_data::redraw(Spectrum& spec)
+{
+    if (!handle_input())
+        return;
+    handle_resize(spec);
+
+    unsigned int width = last_width, height = last_height;
+    double ky = height * 0.25 / 65536.0;
+    freq_data* freq = spec.freq;
+    int minK = spec.minK, maxK = spec.maxK;
+    double* left_amp = spec.left.amp;
+    double* right_amp = spec.right.amp;
+    double prevAmpL = 0;
+    double prevAmpR = 0;
+    int lastx = -1;
 
     XSetForeground(dis, gc, 0);
     XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
 
-    int lastx = -1;
-    double prevAmpL = 0;
-    double prevAmpR = 0;
-
     for (int k = minK; k < maxK; k++) {
-        prevAmpL = std::max(prevAmpL, spec.left.amp[k]);
-        prevAmpR = std::max(prevAmpR, spec.right.amp[k]);
+        prevAmpL = std::max(prevAmpL, left_amp[k]);
+        prevAmpR = std::max(prevAmpR, right_amp[k]);
         int x = freq[k].x;
         if (lastx < x) {
             lastx = x + 3;
