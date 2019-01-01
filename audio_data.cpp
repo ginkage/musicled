@@ -1,11 +1,11 @@
 #include "audio_data.h"
-#include "global.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-audio_data::audio_data()
+audio_data::audio_data(global_state* state)
+    : global(state)
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
 
@@ -115,7 +115,7 @@ void audio_data::input_alsa()
     const int loff = stride - 2; // Highest 2 bytes in the first half of a frame
     const int roff = bpf - 2; // Highest 2 bytes in the second half of a frame
 
-    while (!g_terminate) {
+    while (!global->terminate) {
         int err = snd_pcm_readi(handle, buffer, frames);
 
         if (err == -EPIPE) {

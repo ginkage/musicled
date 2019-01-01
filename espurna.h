@@ -1,13 +1,13 @@
 #ifndef __MUSICLED_ESPURNA_H__
 #define __MUSICLED_ESPURNA_H__
 
-#include "color.h"
+#include "global_state.h"
 
 #include <pthread.h>
 
 struct espurna {
 public:
-    espurna(char* host, char* api, color* col);
+    espurna(char* host, char* api, global_state* state);
     void start_thread();
     void join_thread();
 
@@ -18,7 +18,7 @@ private:
     char* hostname;
     char* api_key;
     char resolved[16];
-    color* cur_color;
+    global_state* global;
     pthread_t p_thread;
 };
 

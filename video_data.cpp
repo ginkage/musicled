@@ -1,7 +1,11 @@
 #include "video_data.h"
-#include "global.h"
 
-video_data::video_data()
+#include <X11/Xos.h>
+#include <X11/Xutil.h>
+#include <algorithm>
+
+video_data::video_data(global_state* state)
+    : global(state)
 {
     dis = XOpenDisplay((char*)0);
     if (dis == nullptr)
@@ -44,7 +48,7 @@ void video_data::redraw(Spectrum& spec)
         XNextEvent(dis, &event);
         if ((event.type == KeyPress && XLookupKeysym(&event.xkey, 0) == XK_q)
             || (event.type == ClientMessage && (Atom)event.xclient.data.l[0] == close)) {
-            g_terminate = true;
+            global->terminate = true;
             return;
         }
     }

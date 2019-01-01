@@ -14,7 +14,7 @@ class FFTData {
 public:
     FFTData();
     ~FFTData();
-    void read(SlidingWindow<double>& window);
+    void read(SlidingWindow& window);
     void execute();
 
 public:

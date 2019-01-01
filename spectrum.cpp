@@ -3,15 +3,6 @@
 #include <algorithm>
 #include <math.h>
 
-Spectrum::Spectrum(audio_data* data)
-    : audio(data)
-    , freq(new freq_data[N1])
-{
-    precalc();
-}
-
-Spectrum::~Spectrum() { delete[] freq; }
-
 // "Saw" function with specified range
 inline double saw(double val, double p)
 {
@@ -19,10 +10,13 @@ inline double saw(double val, double p)
     return p * fabs(x - floor(x + 0.5));
 }
 
-void Spectrum::precalc()
+Spectrum::Spectrum(global_state* state)
+    : freq(new freq_data[N1])
+    , global(state)
+    , audio(state)
 {
     double maxFreq = N;
-    double minFreq = audio->rate / maxFreq;
+    double minFreq = audio.rate / maxFreq;
     double base = log(pow(2, 1.0 / 12.0));
     double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
 
@@ -53,14 +47,16 @@ void Spectrum::precalc()
     }
 }
 
+Spectrum::~Spectrum() { delete[] freq; }
+
 void Spectrum::process()
 {
-    left.read(audio->left);
-    if (audio->channels == 2)
-        right.read(audio->right);
+    left.read(audio.left);
+    if (audio.channels == 2)
+        right.read(audio.right);
 
     left.execute();
-    if (audio->channels == 2)
+    if (audio.channels == 2)
         right.execute();
 
     fftw_complex* outl = left.out;
@@ -78,5 +74,9 @@ void Spectrum::process()
         }
     }
 
-    curColor = freq[maxF].c;
+    global->cur_color = freq[maxF].c;
 }
+
+void Spectrum::start_input() { audio.start_thread(); }
+
+void Spectrum::stop_input() { audio.join_thread(); }

@@ -1,5 +1,7 @@
 #include "fft_data.h"
 
+#include <string.h>
+
 FFTData::FFTData()
     : amp(new double[N1])
 {
@@ -16,6 +18,6 @@ FFTData::~FFTData()
     delete[] amp;
 }
 
-void FFTData::read(SlidingWindow<double>& window) { window.read(in, N); }
+void FFTData::read(SlidingWindow& window) { window.read(in, N); }
 
 void FFTData::execute() { fftw_execute(plan); }

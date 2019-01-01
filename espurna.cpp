@@ -1,5 +1,4 @@
 #include "espurna.h"
-#include "global.h"
 #include "vsync.h"
 
 #include <arpa/inet.h>
@@ -12,10 +11,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-espurna::espurna(char* host, char* api, color* col)
+espurna::espurna(char* host, char* api, global_state* state)
     : hostname(host)
     , api_key(api)
-    , cur_color(col)
+    , global(state)
 {
     hostent* host_entry = gethostbyname(host);
     if (host_entry == nullptr) {
@@ -63,11 +62,11 @@ void espurna::socket_send()
     std::cout << "Connecting to " << hostname << " as " << resolved << std::endl;
 
     color col;
-    while (!g_terminate) {
+    while (!global->terminate) {
         VSync vsync(60); // Wait between checks
 
-        if (col != *cur_color) {
-            col = *cur_color;
+        if (col != global->cur_color) {
+            col = global->cur_color;
             // std::cout << col.r << "," << col.g << "," << col.b << std::endl;
 
             int fd = socket_connect(resolved, 80);
