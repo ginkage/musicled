@@ -1,9 +1,2 @@
-stream
-build.sh
-musicled.code-workspace
-musicled-stream.o
-musicled-streampp.o
-stream.c
-.deps/musicled-stream.Tpo
-.deps/musicled-streampp.Tpo
-.vscode/sftp.json
+.deps/*
+.objs/*
