@@ -1,5 +1,6 @@
 #include "audio_data.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -91,3 +92,56 @@ audio_data::audio_data()
 }
 
 audio_data::~audio_data() { snd_pcm_close(handle); }
+
+void audio_data::start_thread() { pthread_create(&p_thread, NULL, run_thread, (void*)this); }
+
+void audio_data::join_thread() { pthread_join(p_thread, NULL); }
+
+void* audio_data::run_thread(void* arg)
+{
+    audio_data* audio = (audio_data*)arg;
+    audio->input_alsa();
+    return NULL;
+}
+
+void audio_data::input_alsa()
+{
+    const int bpf = (format / 8) * channels; // bytes per frame
+    const int size = frames * bpf;
+    uint8_t* buffer = new uint8_t[size];
+
+    const int stride = bpf / 2; // half-frame: bytes in a channel, or shorts in a frame
+    const int loff = stride - 2; // Highest 2 bytes in the first half of a frame
+    const int roff = bpf - 2; // Highest 2 bytes in the second half of a frame
+
+    while (!terminate) {
+        int err = snd_pcm_readi(handle, buffer, frames);
+
+        if (err == -EPIPE) {
+            fprintf(stderr, "overrun occurred\n");
+            snd_pcm_prepare(handle);
+        } else if (err < 0) {
+            fprintf(stderr, "error from read: %s\n", snd_strerror(err));
+        } else if (err != (int)frames) {
+            fprintf(stderr, "short read, read %d of %d frames\n", err, (int)frames);
+        } else {
+            double left_data[frames];
+            double right_data[frames];
+
+            // For 32 and 24 bit, we'll drop extra precision
+            int16_t* pleft = (int16_t*)(buffer + loff);
+            int16_t* pright = (int16_t*)(buffer + roff);
+            for (unsigned int i = 0; i < frames; i++) {
+                left_data[i] = *pleft;
+                right_data[i] = *pright;
+                pleft += stride;
+                pright += stride;
+            }
+
+            left.write(left_data, frames);
+            right.write(right_data, frames);
+        }
+    }
+
+    delete[] buffer;
+}

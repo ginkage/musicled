@@ -5,8 +5,10 @@
 #include "sliding_window.h"
 
 #include <alsa/asoundlib.h>
+#include <pthread.h>
 
 struct audio_data {
+public:
     audio_data();
     ~audio_data();
 
@@ -22,6 +24,15 @@ struct audio_data {
 
     bool terminate{ false }; // shared variable used to terminate audio thread
     color curColor;
+
+    void start_thread();
+    void join_thread();
+
+private:
+    static void* run_thread(void* arg);
+    void input_alsa();
+
+    pthread_t p_thread;
 };
 
 #endif
