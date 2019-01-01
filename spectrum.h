@@ -21,7 +21,7 @@ public:
     int minK, maxK;
 
 private:
-    global_state *global;
+    global_state* global;
     audio_data audio;
 };
 
