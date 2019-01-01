@@ -2,6 +2,7 @@
 #define __MUSICLED_SPECTRUM_H__
 
 #include "audio_data.h"
+#include "color.h"
 #include "fft_data.h"
 #include "freq_data.h"
 
@@ -11,6 +12,8 @@ public:
     ~Spectrum();
     void precalc();
     void process();
+
+    color curColor;
 
 public:
     audio_data* audio;

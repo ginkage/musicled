@@ -4,7 +4,6 @@
 #include "sliding_window.h"
 
 #include <fftw3.h>
-#include <string.h>
 
 constexpr int M = 11;
 constexpr int N = 1 << M;

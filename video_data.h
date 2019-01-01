@@ -8,10 +8,12 @@
 #include <X11/Xutil.h>
 
 struct video_data {
+public:
     video_data();
     ~video_data();
     void redraw(Spectrum& spec);
 
+private:
     Display* dis;
     int screen;
     Window win;

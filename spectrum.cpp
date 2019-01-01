@@ -78,5 +78,5 @@ void Spectrum::process()
         }
     }
 
-    audio->curColor = freq[maxF].c;
+    curColor = freq[maxF].c;
 }

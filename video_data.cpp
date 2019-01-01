@@ -1,4 +1,5 @@
 #include "video_data.h"
+#include "global.h"
 
 video_data::video_data()
 {
@@ -43,7 +44,7 @@ void video_data::redraw(Spectrum& spec)
         XNextEvent(dis, &event);
         if ((event.type == KeyPress && XLookupKeysym(&event.xkey, 0) == XK_q)
             || (event.type == ClientMessage && (Atom)event.xclient.data.l[0] == close)) {
-            spec.audio->terminate = true;
+            g_terminate = true;
             return;
         }
     }
@@ -58,18 +59,17 @@ void video_data::redraw(Spectrum& spec)
     double maxNote = 110;
     double kx = width / (maxNote - minNote);
     double ky = height * 0.25 / 65536.0;
+    int minK = spec.minK, maxK = spec.maxK;
 
     if (width != last_width || height != last_height) {
         last_width = width;
         last_height = height;
-        if (double_buffer != 0) {
+        if (double_buffer != 0)
             XFreePixmap(dis, double_buffer);
-        }
         double_buffer = XCreatePixmap(dis, win, width, height, 24);
 
-        for (int k = 1; k < N1; k++) {
+        for (int k = minK; k < maxK; k++)
             freq[k].x = (int)((freq[k].note - minNote) * kx + 0.5);
-        }
     }
 
     XSetForeground(dis, gc, 0);
@@ -78,7 +78,6 @@ void video_data::redraw(Spectrum& spec)
     int lastx = -1;
     double prevAmpL = 0;
     double prevAmpR = 0;
-    int minK = spec.minK, maxK = spec.maxK;
 
     for (int k = minK; k < maxK; k++) {
         prevAmpL = std::max(prevAmpL, spec.left.amp[k]);
