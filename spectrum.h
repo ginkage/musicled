@@ -1,14 +1,14 @@
 #ifndef __MUSICLED_SPECTRUM_H__
 #define __MUSICLED_SPECTRUM_H__
 
-#include "audio_data.h"
+#include "alsa_input.h"
 #include "fft_data.h"
 #include "freq_data.h"
 #include "global_state.h"
 
 class Spectrum {
 public:
-    Spectrum(global_state* state);
+    Spectrum(GlobalState* state);
     ~Spectrum();
     void precalc();
     void process();
@@ -16,13 +16,13 @@ public:
     void stop_input();
 
 public:
-    freq_data* freq;
-    FFTData left, right;
+    FreqData* freq;
+    FftData left, right;
     int minK, maxK;
 
 private:
-    global_state* global;
-    audio_data audio;
+    GlobalState* global;
+    AlsaInput audio;
 };
 
 #endif

@@ -17,7 +17,7 @@ void sig_handler(int sig_no)
     }
 }
 
-global_state::global_state()
+GlobalState::GlobalState()
 {
     struct sigaction action;
     memset(&action, 0, sizeof(action));

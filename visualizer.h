@@ -6,10 +6,10 @@
 
 #include <X11/Xlib.h>
 
-class video_data {
+class Visualizer {
 public:
-    video_data(global_state* state);
-    ~video_data();
+    Visualizer(GlobalState* state);
+    ~Visualizer();
     void redraw(Spectrum& spec);
 
 private:
@@ -23,7 +23,7 @@ private:
     Atom close;
     Pixmap double_buffer = 0;
     unsigned int last_width = -1, last_height = -1;
-    global_state* global;
+    GlobalState* global;
 };
 
 #endif

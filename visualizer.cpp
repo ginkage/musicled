@@ -1,10 +1,10 @@
-#include "video_data.h"
+#include "visualizer.h"
 
 #include <X11/Xos.h>
 #include <X11/Xutil.h>
 #include <algorithm>
 
-video_data::video_data(global_state* state)
+Visualizer::Visualizer(GlobalState* state)
     : global(state)
 {
     dis = XOpenDisplay((char*)0);
@@ -28,7 +28,7 @@ video_data::video_data(global_state* state)
     XSetWMProtocols(dis, win, &close, 1);
 };
 
-video_data::~video_data()
+Visualizer::~Visualizer()
 {
     if (dis == nullptr)
         return;
@@ -38,7 +38,7 @@ video_data::~video_data()
     XCloseDisplay(dis);
 }
 
-bool video_data::handle_input()
+bool Visualizer::handle_input()
 {
     if (dis == nullptr)
         return false;
@@ -56,14 +56,14 @@ bool video_data::handle_input()
     return true;
 }
 
-void video_data::handle_resize(Spectrum& spec)
+void Visualizer::handle_resize(Spectrum& spec)
 {
     unsigned int width, height, bw, dr;
     Window root;
     int xx, yy;
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
 
-    freq_data* freq = spec.freq;
+    FreqData* freq = spec.freq;
     int minK = spec.minK, maxK = spec.maxK;
     double minNote = 34;
     double maxNote = 110;
@@ -81,7 +81,7 @@ void video_data::handle_resize(Spectrum& spec)
     }
 }
 
-void video_data::redraw(Spectrum& spec)
+void Visualizer::redraw(Spectrum& spec)
 {
     if (!handle_input())
         return;
@@ -89,7 +89,7 @@ void video_data::redraw(Spectrum& spec)
 
     unsigned int width = last_width, height = last_height;
     double ky = height * 0.25 / 65536.0;
-    freq_data* freq = spec.freq;
+    FreqData* freq = spec.freq;
     int minK = spec.minK, maxK = spec.maxK;
     double* left_amp = spec.left.amp;
     double* right_amp = spec.right.amp;

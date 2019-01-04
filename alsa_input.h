@@ -7,10 +7,10 @@
 #include <alsa/asoundlib.h>
 #include <pthread.h>
 
-class audio_data {
+class AlsaInput {
 public:
-    audio_data(global_state* state);
-    ~audio_data();
+    AlsaInput(GlobalState* state);
+    ~AlsaInput();
 
     unsigned int rate{ 0 };
     unsigned int channels{ 2 };
@@ -28,7 +28,7 @@ private:
     int format{ -1 };
     snd_pcm_t* handle;
     snd_pcm_uframes_t frames;
-    global_state* global;
+    GlobalState* global;
     pthread_t p_thread;
 };
 

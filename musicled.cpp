@@ -2,7 +2,7 @@
 #include "fps.h"
 #include "global_state.h"
 #include "spectrum.h"
-#include "video_data.h"
+#include "visualizer.h"
 #include "vsync.h"
 
 #include <chrono>
@@ -11,25 +11,25 @@
 int main(int argc, char* argv[])
 {
     // Handle Ctrl+C
-    global_state global;
+    GlobalState global;
 
     // Init Audio
     Spectrum spec(&global);
 
     // Init X11
-    video_data video(&global);
+    Visualizer video(&global);
 
     // Init Network
-    std::list<espurna> strips;
+    std::list<Espurna> strips;
     for (int k = 0; k + 2 < argc; k += 2)
-        strips.push_back(espurna(argv[k + 1], argv[k + 2], &global));
+        strips.push_back(Espurna(argv[k + 1], argv[k + 2], &global));
 
     spec.start_input();
-    for (espurna& strip : strips)
+    for (Espurna& strip : strips)
         strip.start_thread();
 
     const int framerate = 60;
-    FPS fps;
+    Fps fps;
     std::chrono::_V2::system_clock::time_point vstart = std::chrono::high_resolution_clock::now();
     while (!global.terminate) {
         VSync vsync(framerate, &vstart);
@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
     }
 
     spec.stop_input();
-    for (espurna& strip : strips)
+    for (Espurna& strip : strips)
         strip.join_thread();
 
     return 0;

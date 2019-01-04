@@ -3,11 +3,11 @@
 
 #include "color.h"
 
-struct global_state {
-    global_state();
+struct GlobalState {
+    GlobalState();
 
     bool terminate{ false };
-    color cur_color;
+    Color cur_Color;
 };
 
 #endif

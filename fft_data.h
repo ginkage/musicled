@@ -10,10 +10,10 @@ constexpr int N = 1 << M;
 constexpr int N1 = N / 2;
 constexpr int HALF_N = N / 2 + 1;
 
-class FFTData {
+class FftData {
 public:
-    FFTData();
-    ~FFTData();
+    FftData();
+    ~FftData();
     void read(SlidingWindow& window);
     void execute();
 

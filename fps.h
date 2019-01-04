@@ -1,17 +1,17 @@
-#ifndef __MUSICLED_FPS_H__
-#define __MUSICLED_FPS_H__
+#ifndef __MUSICLED_Fps_H__
+#define __MUSICLED_Fps_H__
 
 #include <chrono>
 #include <iostream>
 #include <stdint.h>
 
-class FPS {
+class Fps {
 private:
     int frames;
     std::chrono::_V2::system_clock::time_point start;
 
 public:
-    FPS()
+    Fps()
         : frames(-1)
         , start(std::chrono::high_resolution_clock::now())
     {

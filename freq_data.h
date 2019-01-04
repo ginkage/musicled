@@ -3,8 +3,8 @@
 
 #include "color.h"
 
-struct freq_data {
-    color c;
+struct FreqData {
+    Color c;
     unsigned long ic;
     double note;
     int x;

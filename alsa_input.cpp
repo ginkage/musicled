@@ -1,10 +1,10 @@
-#include "audio_data.h"
+#include "alsa_input.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-audio_data::audio_data(global_state* state)
+AlsaInput::AlsaInput(GlobalState* state)
     : global(state)
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
@@ -92,20 +92,20 @@ audio_data::audio_data(global_state* state)
     }
 }
 
-audio_data::~audio_data() { snd_pcm_close(handle); }
+AlsaInput::~AlsaInput() { snd_pcm_close(handle); }
 
-void audio_data::start_thread() { pthread_create(&p_thread, NULL, run_thread, (void*)this); }
+void AlsaInput::start_thread() { pthread_create(&p_thread, NULL, run_thread, (void*)this); }
 
-void audio_data::join_thread() { pthread_join(p_thread, NULL); }
+void AlsaInput::join_thread() { pthread_join(p_thread, NULL); }
 
-void* audio_data::run_thread(void* arg)
+void* AlsaInput::run_thread(void* arg)
 {
-    audio_data* audio = (audio_data*)arg;
+    AlsaInput* audio = (AlsaInput*)arg;
     audio->input_alsa();
     return NULL;
 }
 
-void audio_data::input_alsa()
+void AlsaInput::input_alsa()
 {
     const int bpf = (format / 8) * channels; // bytes per frame
     const int size = frames * bpf;

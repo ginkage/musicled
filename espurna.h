@@ -5,9 +5,9 @@
 
 #include <pthread.h>
 
-class espurna {
+class Espurna {
 public:
-    espurna(char* host, char* api, global_state* state);
+    Espurna(char* host, char* api, GlobalState* state);
     void start_thread();
     void join_thread();
 
@@ -18,7 +18,7 @@ private:
     char* hostname;
     char* api_key;
     char resolved[16];
-    global_state* global;
+    GlobalState* global;
     pthread_t p_thread;
 };
 

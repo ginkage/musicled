@@ -11,7 +11,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-espurna::espurna(char* host, char* api, global_state* state)
+Espurna::Espurna(char* host, char* api, GlobalState* state)
     : hostname(host)
     , api_key(api)
     , global(state)
@@ -25,13 +25,13 @@ espurna::espurna(char* host, char* api, global_state* state)
     strcpy(resolved, addr);
 }
 
-void espurna::start_thread() { pthread_create(&p_thread, NULL, run_thread, (void*)this); }
+void Espurna::start_thread() { pthread_create(&p_thread, NULL, run_thread, (void*)this); }
 
-void espurna::join_thread() { pthread_join(p_thread, NULL); }
+void Espurna::join_thread() { pthread_join(p_thread, NULL); }
 
-void* espurna::run_thread(void* arg)
+void* Espurna::run_thread(void* arg)
 {
-    espurna* strip = (espurna*)arg;
+    Espurna* strip = (Espurna*)arg;
     strip->socket_send();
     return NULL;
 }
@@ -57,16 +57,16 @@ int socket_connect(char* host, in_port_t port)
     return sock;
 }
 
-void espurna::socket_send()
+void Espurna::socket_send()
 {
     std::cout << "Connecting to " << hostname << " as " << resolved << std::endl;
 
-    color col;
+    Color col;
     while (!global->terminate) {
         VSync vsync(60); // Wait between checks
 
-        if (col != global->cur_color) {
-            col = global->cur_color;
+        if (col != global->cur_Color) {
+            col = global->cur_Color;
             // std::cout << col.r << "," << col.g << "," << col.b << std::endl;
 
             int fd = socket_connect(resolved, 80);

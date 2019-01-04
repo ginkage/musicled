@@ -10,8 +10,8 @@ inline double saw(double val, double p)
     return p * fabs(x - floor(x + 0.5));
 }
 
-Spectrum::Spectrum(global_state* state)
-    : freq(new freq_data[N1])
+Spectrum::Spectrum(GlobalState* state)
+    : freq(new FreqData[N1])
     , global(state)
     , audio(state)
 {
@@ -33,12 +33,12 @@ Spectrum::Spectrum(global_state* state)
         double B = saw(spectre - 2, 12);
         double mn = saw(spectre - 2, 4);
 
-        color c;
+        Color c;
         c.r = (int)((R - mn) * 63.75 + 0.5);
         c.g = (int)((G - mn) * 63.75 + 0.5);
         c.b = (int)((B - mn) * 63.75 + 0.5);
 
-        freq_data f;
+        FreqData f;
         f.c = c;
         f.note = note;
         f.ic = (((long)c.r) << 16) + (((long)c.g) << 8) + ((long)c.b);
@@ -74,7 +74,7 @@ void Spectrum::process()
         }
     }
 
-    global->cur_color = freq[maxF].c;
+    global->cur_Color = freq[maxF].c;
 }
 
 void Spectrum::start_input() { audio.start_thread(); }

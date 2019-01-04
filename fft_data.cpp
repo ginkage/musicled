@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-FFTData::FFTData()
+FftData::FftData()
     : amp(new double[N1])
 {
     out = fftw_alloc_complex(HALF_N);
@@ -11,13 +11,13 @@ FFTData::FFTData()
     memset(out, 0, HALF_N * sizeof(fftw_complex));
 }
 
-FFTData::~FFTData()
+FftData::~FftData()
 {
     fftw_destroy_plan(plan);
     fftw_free(out);
     delete[] amp;
 }
 
-void FFTData::read(SlidingWindow& window) { window.read(in, N); }
+void FftData::read(SlidingWindow& window) { window.read(in, N); }
 
-void FFTData::execute() { fftw_execute(plan); }
+void FftData::execute() { fftw_execute(plan); }
