@@ -1,8 +1,8 @@
 #ifndef __MUSICLED_VIDEO_DATA_H__
 #define __MUSICLED_VIDEO_DATA_H__
 
+#include "freq_data.h"
 #include "global_state.h"
-#include "spectrum.h"
 
 #include <X11/Xlib.h>
 
@@ -10,11 +10,11 @@ class Visualizer {
 public:
     Visualizer(GlobalState* state);
     ~Visualizer();
-    void redraw(Spectrum& spec);
+    void redraw(FreqData& spec);
 
 private:
     bool handle_input();
-    void handle_resize(Spectrum& spec);
+    void handle_resize(FreqData& freq);
 
     Display* dis;
     int screen;

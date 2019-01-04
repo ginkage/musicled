@@ -6,10 +6,6 @@
 #include <stdint.h>
 
 class Fps {
-private:
-    int frames;
-    std::chrono::_V2::system_clock::time_point start;
-
 public:
     Fps()
         : frames(-1)
@@ -27,6 +23,10 @@ public:
             start = finish;
         }
     }
+
+private:
+    int frames;
+    std::chrono::_V2::system_clock::time_point start;
 };
 
 #endif

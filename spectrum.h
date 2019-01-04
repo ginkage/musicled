@@ -9,20 +9,15 @@
 class Spectrum {
 public:
     Spectrum(GlobalState* state);
-    ~Spectrum();
-    void precalc();
-    void process();
+    FreqData& process();
     void start_input();
     void stop_input();
-
-public:
-    FreqData* freq;
-    FftData left, right;
-    int minK, maxK;
 
 private:
     GlobalState* global;
     AlsaInput audio;
+    FreqData freq;
+    FftData left, right;
 };
 
 #endif

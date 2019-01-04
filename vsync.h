@@ -6,11 +6,6 @@
 #include <time.h>
 
 class VSync {
-private:
-    std::chrono::_V2::system_clock::time_point start;
-    std::chrono::_V2::system_clock::time_point* pstart;
-    int64_t frame_time;
-
 public:
     VSync(int frame_rate, std::chrono::_V2::system_clock::time_point* prev = nullptr)
         : pstart(prev)
@@ -35,6 +30,11 @@ public:
         } else if (pstart != nullptr)
             *pstart = finish;
     }
+
+private:
+    std::chrono::_V2::system_clock::time_point start;
+    std::chrono::_V2::system_clock::time_point* pstart;
+    int64_t frame_time;
 };
 
 #endif

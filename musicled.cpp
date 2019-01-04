@@ -1,5 +1,6 @@
 #include "espurna.h"
 #include "fps.h"
+#include "freq_data.h"
 #include "global_state.h"
 #include "spectrum.h"
 #include "visualizer.h"
@@ -34,8 +35,8 @@ int main(int argc, char* argv[])
     while (!global.terminate) {
         VSync vsync(framerate, &vstart);
         fps.tick(framerate);
-        spec.process();
-        video.redraw(spec);
+        FreqData& freq = spec.process();
+        video.redraw(freq);
     }
 
     spec.stop_input();

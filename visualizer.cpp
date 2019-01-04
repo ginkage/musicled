@@ -56,15 +56,14 @@ bool Visualizer::handle_input()
     return true;
 }
 
-void Visualizer::handle_resize(Spectrum& spec)
+void Visualizer::handle_resize(FreqData& freq)
 {
     unsigned int width, height, bw, dr;
     Window root;
     int xx, yy;
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
 
-    FreqData* freq = spec.freq;
-    int minK = spec.minK, maxK = spec.maxK;
+    int minK = freq.minK, maxK = freq.maxK;
     double minNote = 34;
     double maxNote = 110;
     double kx = width / (maxNote - minNote);
@@ -77,22 +76,21 @@ void Visualizer::handle_resize(Spectrum& spec)
         double_buffer = XCreatePixmap(dis, win, width, height, 24);
 
         for (int k = minK; k < maxK; k++)
-            freq[k].x = (int)((freq[k].note - minNote) * kx + 0.5);
+            freq.x[k] = (int)((freq.note[k] - minNote) * kx + 0.5);
     }
 }
 
-void Visualizer::redraw(Spectrum& spec)
+void Visualizer::redraw(FreqData& freq)
 {
     if (!handle_input())
         return;
-    handle_resize(spec);
+    handle_resize(freq);
 
     unsigned int width = last_width, height = last_height;
     double ky = height * 0.25 / 65536.0;
-    FreqData* freq = spec.freq;
-    int minK = spec.minK, maxK = spec.maxK;
-    double* left_amp = spec.left.amp;
-    double* right_amp = spec.right.amp;
+    int minK = freq.minK, maxK = freq.maxK;
+    double* left_amp = freq.left_amp;
+    double* right_amp = freq.right_amp;
     double prevAmpL = 0;
     double prevAmpR = 0;
     int lastx = -1;
@@ -103,14 +101,14 @@ void Visualizer::redraw(Spectrum& spec)
     for (int k = minK; k < maxK; k++) {
         prevAmpL = std::max(prevAmpL, left_amp[k]);
         prevAmpR = std::max(prevAmpR, right_amp[k]);
-        int x = freq[k].x;
+        int x = freq.x[k];
         if (lastx < x) {
             lastx = x + 3;
             int yl = (int)(prevAmpL * ky + 0.5);
             int yr = (int)(prevAmpR * ky + 0.5);
             prevAmpL = 0;
             prevAmpR = 0;
-            XSetForeground(dis, gc, freq[k].ic);
+            XSetForeground(dis, gc, freq.ic[k]);
             XDrawLine(dis, double_buffer, gc, x, height * 0.5 - yl, x, height * 0.5 + yr);
         }
     }

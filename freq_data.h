@@ -4,10 +4,16 @@
 #include "color.h"
 
 struct FreqData {
-    Color c;
-    unsigned long ic;
-    double note;
-    int x;
+    FreqData(int n, unsigned int rate);
+    ~FreqData();
+
+    Color* color;
+    unsigned long* ic;
+    double* note;
+    int* x;
+    double* left_amp;
+    double* right_amp;
+    int minK, maxK;
 };
 
 #endif

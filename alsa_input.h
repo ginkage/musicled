@@ -13,7 +13,6 @@ public:
     ~AlsaInput();
 
     unsigned int rate{ 0 };
-    unsigned int channels{ 2 };
 
     SlidingWindow left{ 65536 };
     SlidingWindow right{ 65536 };
@@ -25,6 +24,7 @@ private:
     static void* run_thread(void* arg);
     void input_alsa();
 
+    unsigned int channels{ 2 };
     int format{ -1 };
     snd_pcm_t* handle;
     snd_pcm_uframes_t frames;
