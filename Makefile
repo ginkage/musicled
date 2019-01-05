@@ -19,7 +19,7 @@ LDLIBS := -lasound -lm -lfftw3 -lX11
 DEPFLAGS = -MT $@ -MD -MP -MF $(DEPDIR)/$*.Td
 
 $(BIN): $(OBJS)
-	$(LD) $(LDFLAGS) $(LDLIBS) -o $@ $^
+	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(OBJDIR)/%.o: %.cpp
 $(OBJDIR)/%.o: %.cpp $(DEPDIR)/%.d
