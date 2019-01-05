@@ -14,8 +14,8 @@ LD := g++
 
 CXXFLAGS := -std=c++11
 CPPFLAGS := -Wall -Wextra -g -O3
-LDFLAGS := -L/usr/local/lib
-LDLIBS := -lpthread -lasound -lm -lfftw3 -ltinfo -lX11
+LDFLAGS := -L/usr/local/lib -pthread
+LDLIBS := -lasound -lm -lfftw3 -lX11
 DEPFLAGS = -MT $@ -MD -MP -MF $(DEPDIR)/$*.Td
 
 $(BIN): $(OBJS)
