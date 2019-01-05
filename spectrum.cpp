@@ -22,13 +22,15 @@ FreqData& Spectrum::process()
     fftw_complex* outl = left.execute();
     fftw_complex* outr = right.execute();
 
+    double* const left_amp = freq.left_amp;
+    double* const right_amp = freq.right_amp;
     int minK = freq.minK, maxK = freq.maxK;
     int maxF = freq.minK;
     double maxAmp = 0;
 
     for (int k = minK; k < maxK; k++) {
-        double ampl = freq.left_amp[k] = hypot(outl[k][0], outl[k][1]);
-        double ampr = freq.right_amp[k] = hypot(outr[k][0], outr[k][1]);
+        double ampl = left_amp[k] = hypot(outl[k][0], outl[k][1]);
+        double ampr = right_amp[k] = hypot(outr[k][0], outr[k][1]);
         double amp = std::max(ampl, ampr);
         if (amp > maxAmp) {
             maxAmp = amp;

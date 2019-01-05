@@ -7,12 +7,12 @@ struct FreqData {
     FreqData(int n1, unsigned int rate);
     ~FreqData();
 
-    Color* color;
-    unsigned long* ic;
-    double* note;
-    int* x;
-    double* left_amp;
-    double* right_amp;
+    Color* const color;
+    unsigned long* const ic;
+    double* const note;
+    int* const x;
+    double* const left_amp;
+    double* const right_amp;
     int minK, maxK;
 };
 
