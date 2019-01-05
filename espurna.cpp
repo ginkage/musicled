@@ -25,11 +25,12 @@ Espurna::Espurna(char* host, char* api, GlobalState* state)
     strcpy(resolved, addr);
 }
 
-void Espurna::start_thread() { thread = std::thread(run_thread, this); }
+void Espurna::start_thread()
+{
+    thread = std::thread([=] { socket_send(); });
+}
 
 void Espurna::join_thread() { thread.join(); }
-
-void Espurna::run_thread(Espurna* strip) { strip->socket_send(); }
 
 int socket_connect(char* host, in_port_t port)
 {

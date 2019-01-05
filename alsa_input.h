@@ -20,7 +20,6 @@ public:
     void join_thread();
 
 private:
-    static void run_thread(AlsaInput* audio);
     void input_alsa();
 
     int format{ -1 };

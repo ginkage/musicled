@@ -12,7 +12,6 @@ public:
     void join_thread();
 
 private:
-    static void run_thread(Espurna* strip);
     void socket_send();
 
     char* hostname;
