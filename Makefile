@@ -16,18 +16,13 @@ CXXFLAGS := -std=c++11
 CPPFLAGS := -Wall -Wextra -g -O3
 LDFLAGS := -L/usr/local/lib -pthread
 LDLIBS := -lasound -lm -lfftw3 -lX11
-DEPFLAGS = -MT $@ -MD -MP -MF $(DEPDIR)/$*.Td
+DEPFLAGS = -MT $@ -MD -MP -MF $(DEPDIR)/$*.d
 
 $(BIN): $(OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(OBJDIR)/%.o: %.cpp
-$(OBJDIR)/%.o: %.cpp $(DEPDIR)/%.d
 	$(CXX) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
-	mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d
-
-.PRECIOUS = $(DEPDIR)/%.d
-$(DEPDIR)/%.d: ;
 
 -include $(DEPS)
 
