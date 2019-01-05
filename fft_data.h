@@ -7,9 +7,9 @@
 
 class FftData {
 public:
-    FftData(int n);
+    FftData(int n, SlidingWindow* win);
     ~FftData();
-    void read(SlidingWindow& window);
+    void read();
     fftw_complex* execute();
 
 private:
@@ -17,6 +17,7 @@ private:
     fftw_plan plan;
     double* in;
     fftw_complex* out;
+    SlidingWindow* window;
 };
 
 #endif

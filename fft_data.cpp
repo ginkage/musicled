@@ -2,8 +2,9 @@
 
 #include <string.h>
 
-FftData::FftData(int n)
+FftData::FftData(int n, SlidingWindow* win)
     : size(n)
+    , window(win)
 {
     int half_n = n / 2 + 1;
     out = fftw_alloc_complex(half_n);
@@ -18,7 +19,7 @@ FftData::~FftData()
     fftw_free(out);
 }
 
-void FftData::read(SlidingWindow& window) { window.read(in, size); }
+void FftData::read() { window->read(in, size); }
 
 fftw_complex* FftData::execute()
 {

@@ -8,16 +8,16 @@
 Spectrum::Spectrum(GlobalState* state)
     : global(state)
     , audio(state)
-    , freq(N / 2, audio.rate)
-    , left(N)
-    , right(N)
+    , freq(N / 2, audio.get_rate())
+    , left(N, audio.get_left())
+    , right(N, audio.get_right())
 {
 }
 
 FreqData& Spectrum::process()
 {
-    left.read(audio.left);
-    right.read(audio.right);
+    left.read();
+    right.read();
 
     fftw_complex* outl = left.execute();
     fftw_complex* outr = right.execute();
