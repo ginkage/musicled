@@ -75,9 +75,10 @@ void Espurna::socket_send()
                 int len = sprintf(buffer, "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", api_key, col.r, col.g, col.b);
                 // std::cout << buffer << std::endl;
 
-                write(fd, buffer, len);
-                if (read(fd, buffer, sizeof(buffer) - 1) != 0) {
-                    // std::cout << buffer << std::endl;
+                if (write(fd, buffer, len) != -1) {
+                    if (read(fd, buffer, sizeof(buffer) - 1) != 0) {
+                        // std::cout << buffer << std::endl;
+                    }
                 }
                 shutdown(fd, SHUT_RDWR);
                 close(fd);
