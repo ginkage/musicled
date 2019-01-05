@@ -4,7 +4,7 @@
 #include "color.h"
 
 struct FreqData {
-    FreqData(int n, unsigned int rate);
+    FreqData(int n1, unsigned int rate);
     ~FreqData();
 
     Color* color;

@@ -9,15 +9,15 @@ inline double saw(double val, double p)
     return p * fabs(x - floor(x + 0.5));
 }
 
-FreqData::FreqData(int n, unsigned int rate)
-    : color(new Color[n])
-    , ic(new unsigned long[n])
-    , note(new double[n])
-    , x(new int[n])
-    , left_amp(new double[n])
-    , right_amp(new double[n])
+FreqData::FreqData(int n1, unsigned int rate)
+    : color(new Color[n1])
+    , ic(new unsigned long[n1])
+    , note(new double[n1])
+    , x(new int[n1])
+    , left_amp(new double[n1])
+    , right_amp(new double[n1])
 {
-    double maxFreq = n;
+    double maxFreq = 2 * n1;
     double minFreq = rate / maxFreq;
     double base = log(pow(2, 1.0 / 12.0));
     double fcoef = pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
@@ -26,7 +26,7 @@ FreqData::FreqData(int n, unsigned int rate)
     minK = ceil(exp(35 * base) / (minFreq * fcoef));
     maxK = ceil(exp(108 * base) / (minFreq * fcoef));
 
-    for (int k = 1, n1 = n / 2; k < n1; k++) {
+    for (int k = 1; k < n1; k++) {
         double frequency = k * minFreq;
         double fnote = log(frequency * fcoef) / base; // note = 12 * Octave + Note
         double spectre = fmod(fnote, 12); // spectre is within [0, 12)

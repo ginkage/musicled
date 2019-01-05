@@ -8,7 +8,7 @@
 Spectrum::Spectrum(GlobalState* state)
     : global(state)
     , audio(state)
-    , freq(N, audio.rate)
+    , freq(N / 2, audio.rate)
     , left(N)
     , right(N)
 {
