@@ -1,5 +1,5 @@
-#ifndef __MUSICLED_Fps_H__
-#define __MUSICLED_Fps_H__
+#ifndef __MUSICLED_FPS_H__
+#define __MUSICLED_FPS_H__
 
 #include <chrono>
 #include <iostream>

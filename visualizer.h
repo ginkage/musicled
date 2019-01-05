@@ -1,5 +1,5 @@
-#ifndef __MUSICLED_VIDEO_DATA_H__
-#define __MUSICLED_VIDEO_DATA_H__
+#ifndef __MUSICLED_VISUALIZER_H__
+#define __MUSICLED_VISUALIZER_H__
 
 #include "freq_data.h"
 #include "global_state.h"

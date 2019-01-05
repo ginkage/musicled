@@ -1,5 +1,5 @@
-#ifndef __MUSICLED_GLOBAL_H__
-#define __MUSICLED_GLOBAL_H__
+#ifndef __MUSICLED_GLOBAL_STATE_H__
+#define __MUSICLED_GLOBAL_STATE_H__
 
 #include "color.h"
 

@@ -3,7 +3,7 @@
 
 #include "global_state.h"
 
-#include <pthread.h>
+#include <thread>
 
 class Espurna {
 public:
@@ -12,14 +12,14 @@ public:
     void join_thread();
 
 private:
-    static void* run_thread(void* arg);
+    static void run_thread(Espurna* strip);
     void socket_send();
 
     char* hostname;
     char* api_key;
     char resolved[16];
     GlobalState* global;
-    pthread_t p_thread;
+    std::thread thread;
 };
 
 #endif

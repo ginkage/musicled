@@ -1,11 +1,11 @@
-#ifndef __MUSICLED_AUDIO_DATA_H__
-#define __MUSICLED_AUDIO_DATA_H__
+#ifndef __MUSICLED_ALSA_INPUT_H__
+#define __MUSICLED_ALSA_INPUT_H__
 
 #include "global_state.h"
 #include "sliding_window.h"
 
 #include <alsa/asoundlib.h>
-#include <pthread.h>
+#include <thread>
 
 class AlsaInput {
 public:
@@ -20,7 +20,7 @@ public:
     void join_thread();
 
 private:
-    static void* run_thread(void* arg);
+    static void run_thread(AlsaInput* audio);
     void input_alsa();
 
     int format{ -1 };
@@ -33,7 +33,7 @@ private:
     snd_pcm_t* handle;
     snd_pcm_uframes_t frames;
     GlobalState* global;
-    pthread_t p_thread;
+    std::thread thread;
 };
 
 #endif

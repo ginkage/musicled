@@ -94,16 +94,11 @@ AlsaInput::AlsaInput(GlobalState* state)
 
 AlsaInput::~AlsaInput() { snd_pcm_close(handle); }
 
-void AlsaInput::start_thread() { pthread_create(&p_thread, NULL, run_thread, (void*)this); }
+void AlsaInput::start_thread() { thread = std::thread(run_thread, this); }
 
-void AlsaInput::join_thread() { pthread_join(p_thread, NULL); }
+void AlsaInput::join_thread() { thread.join(); }
 
-void* AlsaInput::run_thread(void* arg)
-{
-    AlsaInput* audio = (AlsaInput*)arg;
-    audio->input_alsa();
-    return NULL;
-}
+void AlsaInput::run_thread(AlsaInput* audio) { audio->input_alsa(); }
 
 void AlsaInput::input_alsa()
 {
