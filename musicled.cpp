@@ -9,6 +9,8 @@
 #include <chrono>
 #include <list>
 
+using hires_clock = std::chrono::high_resolution_clock;
+
 int main(int argc, char* argv[])
 {
     // Handle Ctrl+C
@@ -31,7 +33,7 @@ int main(int argc, char* argv[])
 
     const int framerate = 60;
     Fps fps;
-    std::chrono::_V2::system_clock::time_point vstart = std::chrono::high_resolution_clock::now();
+    hires_clock::time_point vstart = hires_clock::now();
     while (!global.terminate) {
         VSync vsync(framerate, &vstart);
         fps.tick(framerate);
