@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <thread>
 
@@ -20,13 +21,11 @@ public:
         hires_clock::time_point finish = hires_clock::now();
         hires_clock::duration duration = finish - start;
 
-        if (duration < frame_time) {
+        if (frame_time > duration)
             std::this_thread::sleep_for(frame_time - duration);
 
-            if (pstart != nullptr)
-                *pstart = start + frame_time;
-        } else if (pstart != nullptr)
-            *pstart = finish;
+        if (pstart != nullptr)
+            *pstart = std::max(start + frame_time, finish);
     }
 
 private:

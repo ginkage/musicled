@@ -57,35 +57,25 @@ AlsaInput::AlsaInput(GlobalState* state)
     // getting actual format
     snd_pcm_hw_params_get_format(params, &pcm_format);
 
-    format = -1;
-    rate = 0;
-    frames = 0;
-    channels = 0;
-
     // converting result to number of bits
     switch (pcm_format) {
     case SND_PCM_FORMAT_S16_LE:
-    case SND_PCM_FORMAT_S16_BE:
-    case SND_PCM_FORMAT_U16_LE:
-    case SND_PCM_FORMAT_U16_BE:
         format = 16;
         break;
     case SND_PCM_FORMAT_S24_LE:
-    case SND_PCM_FORMAT_S24_BE:
-    case SND_PCM_FORMAT_U24_LE:
-    case SND_PCM_FORMAT_U24_BE:
         format = 24;
         break;
     case SND_PCM_FORMAT_S32_LE:
-    case SND_PCM_FORMAT_S32_BE:
-    case SND_PCM_FORMAT_U32_LE:
-    case SND_PCM_FORMAT_U32_BE:
         format = 32;
         break;
     default:
+        format = -1;
         break;
     }
 
+    rate = 0;
+    frames = 0;
+    channels = 0;
     snd_pcm_hw_params_get_rate(params, &rate, NULL);
     snd_pcm_hw_params_get_period_size(params, &frames, NULL);
     snd_pcm_hw_params_get_channels(params, &channels);
