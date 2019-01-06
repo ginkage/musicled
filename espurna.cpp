@@ -58,6 +58,7 @@ void Espurna::socket_send()
     std::cout << "Connecting to " << hostname << " as " << resolved << std::endl;
 
     Color col;
+    char buffer[1024];
     while (!global->terminate) {
         VSync vsync(60); // Wait between checks
 
@@ -67,8 +68,7 @@ void Espurna::socket_send()
 
             int fd = socket_connect(resolved, 80);
             if (fd != 0) {
-                char buffer[1024] = { 0 };
-                int len = sprintf(buffer, "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", api_key, col.r, col.g, col.b);
+                int len = snprintf(buffer, sizeof(buffer), "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", api_key, col.r, col.g, col.b);
                 // std::cout << buffer << std::endl;
 
                 if (write(fd, buffer, len) != -1) {
