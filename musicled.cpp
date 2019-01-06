@@ -16,20 +16,16 @@ int main(int argc, char* argv[])
     // Handle Ctrl+C
     GlobalState global;
 
-    // Init Audio
+    // Init Audio (and start audio input thread)
     Spectrum spec(&global);
 
     // Init X11
     Visualizer video(&global);
 
-    // Init Network
+    // Init Network (and spawn a thread for every LED strip)
     std::list<Espurna> strips;
     for (int k = 0; k + 2 < argc; k += 2)
-        strips.push_back(Espurna(argv[k + 1], argv[k + 2], &global));
-
-    spec.start_input();
-    for (Espurna& strip : strips)
-        strip.start_thread();
+        strips.emplace_back(argv[k + 1], argv[k + 2], &global);
 
     const int framerate = 60;
     Fps fps;
@@ -40,10 +36,6 @@ int main(int argc, char* argv[])
         FreqData& freq = spec.process();
         video.redraw(freq);
     }
-
-    spec.stop_input();
-    for (Espurna& strip : strips)
-        strip.join_thread();
 
     return 0;
 }

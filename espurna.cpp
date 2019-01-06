@@ -21,14 +21,10 @@ Espurna::Espurna(std::string host, std::string api, GlobalState* state)
         exit(EXIT_FAILURE);
     }
     resolved = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
-}
-
-void Espurna::start_thread()
-{
     thread = std::thread([=] { socket_send(); });
 }
 
-void Espurna::join_thread() { thread.join(); }
+Espurna::~Espurna() { thread.join(); }
 
 int socket_connect(std::string& host, in_port_t port)
 {

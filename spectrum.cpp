@@ -12,7 +12,10 @@ Spectrum::Spectrum(GlobalState* state)
     , left(N, audio.get_left())
     , right(N, audio.get_right())
 {
+    audio.start_thread();
 }
+
+Spectrum::~Spectrum() { audio.join_thread(); }
 
 FreqData& Spectrum::process()
 {
@@ -41,7 +44,3 @@ FreqData& Spectrum::process()
     global->cur_Color = freq.color[maxF];
     return freq;
 }
-
-void Spectrum::start_input() { audio.start_thread(); }
-
-void Spectrum::stop_input() { audio.join_thread(); }

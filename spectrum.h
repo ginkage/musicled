@@ -8,9 +8,8 @@
 class Spectrum {
 public:
     Spectrum(GlobalState* state);
+    ~Spectrum();
     FreqData& process();
-    void start_input();
-    void stop_input();
 
 private:
     GlobalState* global;

@@ -8,8 +8,7 @@
 class Espurna {
 public:
     Espurna(std::string host, std::string api, GlobalState* state);
-    void start_thread();
-    void join_thread();
+    ~Espurna();
 
 private:
     void socket_send();
