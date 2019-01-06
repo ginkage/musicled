@@ -1,18 +1,16 @@
-#ifndef __MUSICLED_FREQ_DATA_H__
-#define __MUSICLED_FREQ_DATA_H__
+#pragma once
 
 #include "color.h"
 
+#include <vector>
+
 struct FreqData {
     FreqData(int n1, unsigned int rate);
-    ~FreqData();
 
-    Color* const color;
-    double* const note;
-    int* const x;
-    double* const left_amp;
-    double* const right_amp;
+    std::vector<Color> color;
+    std::vector<double> note;
+    std::vector<int> x;
+    std::vector<double> left_amp;
+    std::vector<double> right_amp;
     int minK, maxK;
 };
-
-#endif

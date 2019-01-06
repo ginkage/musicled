@@ -1,5 +1,4 @@
-#ifndef __MUSICLED_SPECTRUM_H__
-#define __MUSICLED_SPECTRUM_H__
+#pragma once
 
 #include "alsa_input.h"
 #include "fft_data.h"
@@ -19,5 +18,3 @@ private:
     FreqData freq;
     FftData left, right;
 };
-
-#endif

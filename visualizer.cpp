@@ -89,10 +89,10 @@ void Visualizer::redraw(FreqData& freq)
     unsigned int width = last_width, height = last_height;
     double ky = height * 0.25 / 65536.0;
     int minK = freq.minK, maxK = freq.maxK;
-    double* const left_amp = freq.left_amp;
-    double* const right_amp = freq.right_amp;
-    int* const px = freq.x;
-    unsigned long* const pic = (unsigned long*)freq.color;
+    std::vector<double>& left_amp = freq.left_amp;
+    std::vector<double>& right_amp = freq.right_amp;
+    std::vector<int>& px = freq.x;
+    std::vector<Color>& pic = freq.color;
     double prevAmpL = 0;
     double prevAmpR = 0;
     int lastx = -1;
@@ -110,7 +110,7 @@ void Visualizer::redraw(FreqData& freq)
             int yr = height * 0.5 + prevAmpR * ky + 0.5;
             prevAmpL = 0;
             prevAmpR = 0;
-            XSetForeground(dis, gc, pic[k]);
+            XSetForeground(dis, gc, pic[k].ic);
             XDrawLine(dis, double_buffer, gc, x, yl, x, yr);
         }
     }

@@ -1,5 +1,4 @@
-#ifndef __MUSICLED_FPS_H__
-#define __MUSICLED_FPS_H__
+#pragma once
 
 #include <chrono>
 #include <iostream>
@@ -29,5 +28,3 @@ private:
     int frames;
     hires_clock::time_point start;
 };
-
-#endif

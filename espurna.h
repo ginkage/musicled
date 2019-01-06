@@ -1,24 +1,22 @@
-#ifndef __MUSICLED_ESPURNA_H__
-#define __MUSICLED_ESPURNA_H__
+#pragma once
 
 #include "global_state.h"
 
+#include <string>
 #include <thread>
 
 class Espurna {
 public:
-    Espurna(char* host, char* api, GlobalState* state);
+    Espurna(std::string host, std::string api, GlobalState* state);
     void start_thread();
     void join_thread();
 
 private:
     void socket_send();
 
-    char* hostname;
-    char* api_key;
-    char resolved[16];
+    std::string hostname;
+    std::string api_key;
+    std::string resolved;
     GlobalState* global;
     std::thread thread;
 };
-
-#endif

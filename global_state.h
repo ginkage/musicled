@@ -1,5 +1,4 @@
-#ifndef __MUSICLED_GLOBAL_STATE_H__
-#define __MUSICLED_GLOBAL_STATE_H__
+#pragma once
 
 #include "color.h"
 
@@ -9,5 +8,3 @@ struct GlobalState {
     bool terminate{ false };
     Color cur_Color;
 };
-
-#endif

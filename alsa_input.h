@@ -1,5 +1,4 @@
-#ifndef __MUSICLED_ALSA_INPUT_H__
-#define __MUSICLED_ALSA_INPUT_H__
+#pragma once
 
 #include "global_state.h"
 #include "sliding_window.h"
@@ -34,5 +33,3 @@ private:
     snd_pcm_uframes_t frames;
     std::thread thread;
 };
-
-#endif

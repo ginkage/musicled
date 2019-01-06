@@ -10,11 +10,11 @@ inline double saw(double val, double p)
 }
 
 FreqData::FreqData(int n1, unsigned int rate)
-    : color(new Color[n1])
-    , note(new double[n1])
-    , x(new int[n1])
-    , left_amp(new double[n1])
-    , right_amp(new double[n1])
+    : color(n1)
+    , note(n1)
+    , x(n1)
+    , left_amp(n1)
+    , right_amp(n1)
 {
     double maxFreq = 2 * n1;
     double minFreq = rate / maxFreq;
@@ -42,13 +42,4 @@ FreqData::FreqData(int n1, unsigned int rate)
         color[k] = c;
         note[k] = fnote;
     }
-}
-
-FreqData::~FreqData()
-{
-    delete[] color;
-    delete[] note;
-    delete[] x;
-    delete[] left_amp;
-    delete[] right_amp;
 }

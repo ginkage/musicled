@@ -1,8 +1,9 @@
 #include "alsa_input.h"
 
+#include <iostream>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <vector>
 
 AlsaInput::AlsaInput(GlobalState* state)
     : global(state)
@@ -14,7 +15,7 @@ AlsaInput::AlsaInput(GlobalState* state)
     // alsa: open device to capture audio
     int err = snd_pcm_open(&handle, audio_source, SND_PCM_STREAM_CAPTURE, 0);
     if (err < 0) {
-        fprintf(stderr, "error opening stream: %s\n", snd_strerror(err));
+        std::cerr << "error opening stream: " << snd_strerror(err) << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -43,13 +44,13 @@ AlsaInput::AlsaInput(GlobalState* state)
 
     err = snd_pcm_hw_params(handle, params); // attempting to set params
     if (err < 0) {
-        fprintf(stderr, "unable to set hw parameters: %s\n", snd_strerror(err));
+        std::cerr << "unable to set hw parameters: " << snd_strerror(err) << std::endl;
         exit(EXIT_FAILURE);
     }
 
     err = snd_pcm_prepare(handle);
     if (err < 0) {
-        fprintf(stderr, "cannot prepare audio interface for use (%s)\n", snd_strerror(err));
+        std::cerr << "cannot prepare audio interface for use: " << snd_strerror(err) << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -94,7 +95,7 @@ AlsaInput::AlsaInput(GlobalState* state)
     snd_pcm_hw_params_get_channels(params, &channels);
 
     if (format == -1 || rate == 0) {
-        fprintf(stderr, "Could not get rate and/or format, quiting...\n");
+        std::cerr << "Could not get rate and/or format, quiting..." << std::endl;
         exit(EXIT_FAILURE);
     }
 }
@@ -116,23 +117,23 @@ void AlsaInput::input_alsa()
     const int roff = stride - 2; // Highest 2 bytes in the second half of a frame
     const int size = frames * stride;
 
-    uint8_t* buffer = new uint8_t[size];
-    double* left_data = new double[frames];
-    double* right_data = new double[frames];
+    std::vector<uint8_t> buffer(size);
+    std::vector<double> left_data(frames);
+    std::vector<double> right_data(frames);
 
     while (!global->terminate) {
-        int err = snd_pcm_readi(handle, buffer, frames);
+        int err = snd_pcm_readi(handle, buffer.data(), frames);
         if (err == -EPIPE) {
-            fprintf(stderr, "overrun occurred\n");
+            std::cerr << "overrun occurred" << std::endl;
             snd_pcm_prepare(handle);
         } else if (err < 0) {
-            fprintf(stderr, "error from read: %s\n", snd_strerror(err));
+            std::cerr << "error from read: " << snd_strerror(err) << std::endl;
         } else if (err != (int)frames) {
-            fprintf(stderr, "short read, read %d of %d frames\n", err, (int)frames);
+            std::cerr << "short read, read " << err << " of " << frames << " frames" << std::endl;
         } else {
             // For 32 and 24 bit, we'll drop extra precision
-            int8_t* pleft = (int8_t*)(buffer + loff);
-            int8_t* pright = (int8_t*)(buffer + roff);
+            int8_t* pleft = (int8_t*)(buffer.data() + loff);
+            int8_t* pright = (int8_t*)(buffer.data() + roff);
             for (unsigned int i = 0; i < frames; i++) {
                 left_data[i] = *(int16_t*)pleft;
                 right_data[i] = *(int16_t*)pright;
@@ -144,8 +145,4 @@ void AlsaInput::input_alsa()
             right.write(right_data, frames);
         }
     }
-
-    delete[] buffer;
-    delete[] left_data;
-    delete[] right_data;
 }

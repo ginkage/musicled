@@ -1,9 +1,9 @@
-#ifndef __MUSICLED_FFT_DATA_H__
-#define __MUSICLED_FFT_DATA_H__
+#pragma once
 
 #include "sliding_window.h"
 
 #include <fftw3.h>
+#include <vector>
 
 class FftData {
 public:
@@ -15,9 +15,7 @@ public:
 private:
     int size;
     fftw_plan plan;
-    double* in;
+    std::vector<double> in;
     fftw_complex* out;
     SlidingWindow* window;
 };
-
-#endif

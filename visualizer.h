@@ -1,5 +1,4 @@
-#ifndef __MUSICLED_VISUALIZER_H__
-#define __MUSICLED_VISUALIZER_H__
+#pragma once
 
 #include "freq_data.h"
 #include "global_state.h"
@@ -25,5 +24,3 @@ private:
     unsigned int last_width = -1, last_height = -1;
     GlobalState* global;
 };
-
-#endif

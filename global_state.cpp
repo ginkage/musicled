@@ -1,7 +1,7 @@
 #include "global_state.h"
 
+#include <iostream>
 #include <signal.h>
-#include <stdio.h>
 #include <string.h>
 
 bool* g_terminate;
@@ -9,7 +9,7 @@ bool* g_terminate;
 void sig_handler(int sig_no)
 {
     if (sig_no == SIGINT) {
-        printf("CTRL-C pressed -- goodbye\n");
+        std::cout << "CTRL-C pressed -- goodbye" << std::endl;
         *g_terminate = true;
     } else {
         signal(sig_no, SIG_DFL);

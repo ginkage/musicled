@@ -22,8 +22,8 @@ FreqData& Spectrum::process()
     fftw_complex* outl = left.execute();
     fftw_complex* outr = right.execute();
 
-    double* const left_amp = freq.left_amp;
-    double* const right_amp = freq.right_amp;
+    std::vector<double>& left_amp = freq.left_amp;
+    std::vector<double>& right_amp = freq.right_amp;
     int minK = freq.minK, maxK = freq.maxK;
     int maxF = freq.minK;
     double maxAmp = 0;

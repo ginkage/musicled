@@ -1,5 +1,4 @@
-#ifndef __MUSICLED_VSYNC_H__
-#define __MUSICLED_VSYNC_H__
+#pragma once
 
 #include <chrono>
 #include <thread>
@@ -35,5 +34,3 @@ private:
     hires_clock::time_point* pstart;
     hires_clock::duration frame_time;
 };
-
-#endif

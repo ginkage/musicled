@@ -13,8 +13,8 @@ CXX := g++
 LD := g++
 
 CXXFLAGS := -std=c++11
-CPPFLAGS := -Wall -Wextra -g -O3 -ffast-math
-LDFLAGS := -L/usr/local/lib -pthread -g
+CPPFLAGS := -Wall -Wextra -g -O3 -ffast-math -fdata-sections -ffunction-sections
+LDFLAGS := -L/usr/local/lib -pthread -g -Wl,--gc-sections
 LDLIBS := -lasound -lm -lfftw3 -lX11
 DEPFLAGS = -MT $@ -MD -MP -MF $(DEPDIR)/$*.d
 

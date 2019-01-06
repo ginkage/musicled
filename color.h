@@ -1,5 +1,4 @@
-#ifndef __MUSICLED_COLOR_H__
-#define __MUSICLED_COLOR_H__
+#pragma once
 
 union Color {
     unsigned long ic{ 0 };
@@ -10,5 +9,3 @@ union Color {
         unsigned char r;
     };
 };
-
-#endif
