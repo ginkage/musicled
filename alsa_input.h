@@ -22,16 +22,16 @@ public:
 private:
     void input_alsa();
 
-    int format{ -1 };
-    unsigned int rate{ 0 };
-    unsigned int channels{ 2 };
+    int format;
+    unsigned int rate;
+    unsigned int channels;
 
-    SlidingWindow left{ 65536 };
-    SlidingWindow right{ 65536 };
+    GlobalState* global;
+    SlidingWindow left;
+    SlidingWindow right;
 
     snd_pcm_t* handle;
     snd_pcm_uframes_t frames;
-    GlobalState* global;
     std::thread thread;
 };
 

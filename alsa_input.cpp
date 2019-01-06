@@ -6,6 +6,8 @@
 
 AlsaInput::AlsaInput(GlobalState* state)
     : global(state)
+    , left(65536)
+    , right(65536)
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
 
@@ -53,6 +55,11 @@ AlsaInput::AlsaInput(GlobalState* state)
 
     // getting actual format
     snd_pcm_hw_params_get_format(params, &pcm_format);
+
+    format = -1;
+    rate = 0;
+    frames = 0;
+    channels = 0;
 
     // converting result to number of bits
     switch (pcm_format) {
@@ -103,17 +110,18 @@ void AlsaInput::join_thread() { thread.join(); }
 
 void AlsaInput::input_alsa()
 {
-    const int bpf = (format / 8) * channels; // bytes per frame
-    const int size = frames * bpf;
-    uint8_t* buffer = new uint8_t[size];
+    const int bps = format / 8; // bytes per sample
+    const int stride = bps * channels; // bytes per frame
+    const int loff = bps - 2; // Highest 2 bytes in the first half of a frame
+    const int roff = stride - 2; // Highest 2 bytes in the second half of a frame
+    const int size = frames * stride;
 
-    const int stride = bpf / 2; // half-frame: bytes in a channel, or shorts in a frame
-    const int loff = stride - 2; // Highest 2 bytes in the first half of a frame
-    const int roff = bpf - 2; // Highest 2 bytes in the second half of a frame
+    uint8_t* buffer = new uint8_t[size];
+    double* left_data = new double[frames];
+    double* right_data = new double[frames];
 
     while (!global->terminate) {
         int err = snd_pcm_readi(handle, buffer, frames);
-
         if (err == -EPIPE) {
             fprintf(stderr, "overrun occurred\n");
             snd_pcm_prepare(handle);
@@ -122,15 +130,12 @@ void AlsaInput::input_alsa()
         } else if (err != (int)frames) {
             fprintf(stderr, "short read, read %d of %d frames\n", err, (int)frames);
         } else {
-            double left_data[frames];
-            double right_data[frames];
-
             // For 32 and 24 bit, we'll drop extra precision
-            int16_t* pleft = (int16_t*)(buffer + loff);
-            int16_t* pright = (int16_t*)(buffer + roff);
+            int8_t* pleft = (int8_t*)(buffer + loff);
+            int8_t* pright = (int8_t*)(buffer + roff);
             for (unsigned int i = 0; i < frames; i++) {
-                left_data[i] = *pleft;
-                right_data[i] = *pright;
+                left_data[i] = *(int16_t*)pleft;
+                right_data[i] = *(int16_t*)pright;
                 pleft += stride;
                 pright += stride;
             }
@@ -141,4 +146,6 @@ void AlsaInput::input_alsa()
     }
 
     delete[] buffer;
+    delete[] left_data;
+    delete[] right_data;
 }

@@ -14,7 +14,7 @@ LD := g++
 
 CXXFLAGS := -std=c++11
 CPPFLAGS := -Wall -Wextra -g -O3 -ffast-math
-LDFLAGS := -L/usr/local/lib -pthread
+LDFLAGS := -L/usr/local/lib -pthread -g
 LDLIBS := -lasound -lm -lfftw3 -lX11
 DEPFLAGS = -MT $@ -MD -MP -MF $(DEPDIR)/$*.d
 
