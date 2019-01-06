@@ -64,10 +64,6 @@ AlsaInput::AlsaInput(GlobalState* state)
 
     // converting result to number of bits
     switch (pcm_format) {
-    case SND_PCM_FORMAT_S8:
-    case SND_PCM_FORMAT_U8:
-        format = 8;
-        break;
     case SND_PCM_FORMAT_S16_LE:
     case SND_PCM_FORMAT_S16_BE:
     case SND_PCM_FORMAT_U16_LE:
