@@ -62,8 +62,8 @@ void Espurna::socket_send()
     while (!global->terminate) {
         VSync vsync(60); // Wait between checks
 
-        if (col != global->cur_Color) {
-            col = global->cur_Color;
+        if (col.ic != global->cur_Color.ic) {
+            col.ic = global->cur_Color.ic;
             // std::cout << col.r << "," << col.g << "," << col.b << std::endl;
 
             int fd = socket_connect(resolved, 80);

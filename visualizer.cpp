@@ -92,7 +92,7 @@ void Visualizer::redraw(FreqData& freq)
     double* const left_amp = freq.left_amp;
     double* const right_amp = freq.right_amp;
     int* const px = freq.x;
-    unsigned long* const pic = freq.ic;
+    unsigned long* const pic = (unsigned long*)freq.color;
     double prevAmpL = 0;
     double prevAmpR = 0;
     int lastx = -1;

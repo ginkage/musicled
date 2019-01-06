@@ -11,7 +11,6 @@ inline double saw(double val, double p)
 
 FreqData::FreqData(int n1, unsigned int rate)
     : color(new Color[n1])
-    , ic(new unsigned long[n1])
     , note(new double[n1])
     , x(new int[n1])
     , left_amp(new double[n1])
@@ -42,14 +41,12 @@ FreqData::FreqData(int n1, unsigned int rate)
 
         color[k] = c;
         note[k] = fnote;
-        ic[k] = (((long)c.r) << 16) + (((long)c.g) << 8) + ((long)c.b);
     }
 }
 
 FreqData::~FreqData()
 {
     delete[] color;
-    delete[] ic;
     delete[] note;
     delete[] x;
     delete[] left_amp;

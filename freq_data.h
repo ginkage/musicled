@@ -8,7 +8,6 @@ struct FreqData {
     ~FreqData();
 
     Color* const color;
-    unsigned long* const ic;
     double* const note;
     int* const x;
     double* const left_amp;
