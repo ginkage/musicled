@@ -63,7 +63,6 @@ void Visualizer::handle_resize(FreqData& freq)
     int xx, yy;
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
 
-    int minK = freq.minK, maxK = freq.maxK;
     double minNote = 34;
     double maxNote = 110;
     double kx = width / (maxNote - minNote);
@@ -75,7 +74,7 @@ void Visualizer::handle_resize(FreqData& freq)
             XFreePixmap(dis, double_buffer);
         double_buffer = XCreatePixmap(dis, win, width, height, 24);
 
-        for (int k = minK; k < maxK; k++)
+        for (int k = freq.minK; k < freq.maxK; k++)
             freq.x[k] = (int)((freq.note[k] - minNote) * kx + 0.5);
     }
 }
@@ -88,11 +87,6 @@ void Visualizer::redraw(FreqData& freq)
 
     unsigned int width = last_width, height = last_height;
     double ky = height * 0.25 / 65536.0;
-    int minK = freq.minK, maxK = freq.maxK;
-    std::vector<double>& left_amp = freq.left_amp;
-    std::vector<double>& right_amp = freq.right_amp;
-    std::vector<int>& px = freq.x;
-    std::vector<Color>& pic = freq.color;
     double prevAmpL = 0;
     double prevAmpR = 0;
     int lastx = -1;
@@ -100,17 +94,17 @@ void Visualizer::redraw(FreqData& freq)
     XSetForeground(dis, gc, 0);
     XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
 
-    for (int k = minK; k < maxK; k++) {
-        prevAmpL = std::max(prevAmpL, left_amp[k]);
-        prevAmpR = std::max(prevAmpR, right_amp[k]);
-        int x = px[k];
+    for (int k = freq.minK; k < freq.maxK; k++) {
+        prevAmpL = std::max(prevAmpL, freq.left_amp[k]);
+        prevAmpR = std::max(prevAmpR, freq.right_amp[k]);
+        int x = freq.x[k];
         if (lastx < x) {
             lastx = x + 3;
             int yl = height * 0.5 - prevAmpL * ky - 0.5;
             int yr = height * 0.5 + prevAmpR * ky + 0.5;
             prevAmpL = 0;
             prevAmpR = 0;
-            XSetForeground(dis, gc, pic[k].ic);
+            XSetForeground(dis, gc, freq.color[k].ic);
             XDrawLine(dis, double_buffer, gc, x, yl, x, yr);
         }
     }
