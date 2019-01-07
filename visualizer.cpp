@@ -6,6 +6,9 @@
 
 Visualizer::Visualizer(GlobalState* state)
     : global(state)
+    , double_buffer(0)
+    , last_width(-1)
+    , last_height(-1)
 {
     dis = XOpenDisplay((char*)0);
     if (dis == nullptr)

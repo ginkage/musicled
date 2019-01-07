@@ -2,18 +2,19 @@
 
 #include <vector>
 
+// Simple lock-free circular buffer implementation.
 class CircularBuffer {
 public:
     CircularBuffer(int n);
 
-    /* Replace oldest N values in the circular buffer with Values */
+    // Replace oldest samples in the circular buffer with input values
     void write(std::vector<double>& values);
 
-    /* Retrieve N latest Values */
+    // Retrieve latest samples in the circular buffer
     void read(std::vector<double>& values);
 
 private:
-    std::vector<double> buffer;
-    int size;
+    std::vector<double> buffer; // Backing array
+    int size; // Maximum number of frames to store
     int pos; // Position just after the last added value
 };

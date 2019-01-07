@@ -5,6 +5,7 @@
 
 using hires_clock = std::chrono::high_resolution_clock;
 
+// Periodically compute and print the current frame rate
 class Fps {
 public:
     Fps()
@@ -13,6 +14,7 @@ public:
     {
     }
 
+    // One more frame begins
     void tick(int framerate)
     {
         if (++frames >= framerate) {
@@ -25,6 +27,6 @@ public:
     }
 
 private:
-    int frames;
-    hires_clock::time_point start;
+    int frames; // Number of frames shown since the last print
+    hires_clock::time_point start; // Time when last print occurred
 };
