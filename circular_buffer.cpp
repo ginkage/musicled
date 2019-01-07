@@ -9,18 +9,18 @@ CircularBuffer::CircularBuffer(int n)
 {
 }
 
-void CircularBuffer::write(std::vector<double>& values, int n)
+void CircularBuffer::write(std::vector<double>& values)
 {
-    for (int k, j = 0; j < n; j += k) {
+    for (int k, j = 0, n = values.size(); j < n; j += k) {
         k = std::min(pos + (n - j), size) - pos;
         std::copy_n(values.begin() + j, k, buffer.begin() + pos);
         pos = (pos + k) % size;
     }
 }
 
-void CircularBuffer::read(std::vector<double>& values, int n)
+void CircularBuffer::read(std::vector<double>& values)
 {
-    int first = pos - n;
+    int n = values.size(), first = pos - n;
     while (first < 0)
         first += size;
 

@@ -19,7 +19,7 @@ FftData::~FftData()
     fftw_free(out);
 }
 
-void FftData::read() { buffer->read(in, size); }
+void FftData::read() { buffer->read(in); }
 
 fftw_complex* FftData::execute()
 {

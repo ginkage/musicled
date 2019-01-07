@@ -127,8 +127,8 @@ void AlsaInput::input_alsa()
                 pright += stride;
             }
 
-            left.write(left_data, frames);
-            right.write(right_data, frames);
+            left.write(left_data);
+            right.write(right_data);
         }
     }
 }
