@@ -1,15 +1,15 @@
-#include "sliding_window.h"
+#include "circular_buffer.h"
 
 #include <algorithm>
 
-SlidingWindow::SlidingWindow(int n)
+CircularBuffer::CircularBuffer(int n)
     : buffer(n, 0)
     , size(n)
     , pos(0)
 {
 }
 
-void SlidingWindow::write(std::vector<double>& values, int n)
+void CircularBuffer::write(std::vector<double>& values, int n)
 {
     for (int k, j = 0; j < n; j += k) {
         k = std::min(pos + (n - j), size) - pos;
@@ -18,7 +18,7 @@ void SlidingWindow::write(std::vector<double>& values, int n)
     }
 }
 
-void SlidingWindow::read(std::vector<double>& values, int n)
+void CircularBuffer::read(std::vector<double>& values, int n)
 {
     int first = pos - n;
     while (first < 0)

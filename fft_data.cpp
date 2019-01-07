@@ -2,10 +2,10 @@
 
 #include <string.h>
 
-FftData::FftData(int n, SlidingWindow* win)
+FftData::FftData(int n, CircularBuffer* buf)
     : size(n)
     , in(n)
-    , window(win)
+    , buffer(buf)
 {
     int half_n = n / 2 + 1;
     out = fftw_alloc_complex(half_n);
@@ -19,7 +19,7 @@ FftData::~FftData()
     fftw_free(out);
 }
 
-void FftData::read() { window->read(in, size); }
+void FftData::read() { buffer->read(in, size); }
 
 fftw_complex* FftData::execute()
 {

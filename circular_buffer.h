@@ -2,9 +2,9 @@
 
 #include <vector>
 
-class SlidingWindow {
+class CircularBuffer {
 public:
-    SlidingWindow(int n);
+    CircularBuffer(int n);
 
     /* Replace oldest N values in the circular buffer with Values */
     void write(std::vector<double>& values, int n);
