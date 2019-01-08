@@ -66,7 +66,8 @@ void Espurna::socket_send()
             // The color has changed, send it to the LED strip!
             int fd = socket_connect(resolved, 80);
             if (fd != 0) {
-                int len = snprintf(buffer, sizeof(buffer), "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", api, col.r, col.g, col.b);
+                int len = snprintf(buffer, sizeof(buffer),
+                    "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", api, col.r, col.g, col.b);
                 if (write(fd, buffer, len) != -1) {
                     if (read(fd, buffer, sizeof(buffer) - 1) != 0) {
                         // Print the response if you want

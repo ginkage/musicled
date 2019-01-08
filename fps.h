@@ -19,7 +19,8 @@ public:
     {
         if (++frames >= framerate) {
             hires_clock::time_point finish = hires_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
+            auto duration
+                = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start).count();
             std::cout << (frames * 1.0e9 / duration) << " fps" << std::endl;
             frames = 0;
             start = finish;
