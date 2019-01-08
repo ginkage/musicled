@@ -25,6 +25,6 @@ private:
     Window win; // X11 window
     GC gc; // X11 graphic context
     Atom close; // Window deletion event
-    Pixmap double_buffer; // Frame it's all actually rendered into
+    Pixmap back_buffer; // Where it's all actually rendered into
     unsigned int last_width, last_height; // Cached window size
 };

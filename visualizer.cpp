@@ -6,10 +6,11 @@
 
 Visualizer::Visualizer(GlobalState* state)
     : global(state)
-    , double_buffer(0)
+    , back_buffer(0)
     , last_width(-1)
     , last_height(-1)
 {
+    // Initialize the X11 display
     dis = XOpenDisplay((char*)0);
     if (dis == nullptr)
         return;
@@ -46,6 +47,7 @@ bool Visualizer::handle_input()
     if (dis == nullptr)
         return false;
 
+    // Check if the "q" key was pressed, or if the window was closed
     while (XPending(dis) > 0) {
         XEvent event;
         XNextEvent(dis, &event);
@@ -66,17 +68,22 @@ void Visualizer::handle_resize(FreqData& freq)
     int xx, yy;
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
 
+    // The notes range is slightly wider than what we'll draw, to add a border
     double minNote = 34;
     double maxNote = 110;
     double kx = width / (maxNote - minNote);
 
+    // If the window was resized...
     if (width != last_width || height != last_height) {
         last_width = width;
         last_height = height;
-        if (double_buffer != 0)
-            XFreePixmap(dis, double_buffer);
-        double_buffer = XCreatePixmap(dis, win, width, height, 24);
 
+        // ...recreate the back buffer...
+        if (back_buffer != 0)
+            XFreePixmap(dis, back_buffer);
+        back_buffer = XCreatePixmap(dis, win, width, height, 24);
+
+        // ...and recalcualte the lines positions
         for (int k = freq.minK; k < freq.maxK; k++)
             freq.x[k] = (int)((freq.note[k] - minNote) * kx + 0.5);
     }
@@ -94,24 +101,27 @@ void Visualizer::redraw(FreqData& freq)
     double prevAmpR = 0;
     int lastx = -1;
 
+    // Clear with black
     XSetForeground(dis, gc, 0);
-    XFillRectangle(dis, double_buffer, gc, 0, 0, width, height);
+    XFillRectangle(dis, back_buffer, gc, 0, 0, width, height);
 
+    // Draw the lines
     for (int k = freq.minK; k < freq.maxK; k++) {
         prevAmpL = std::max(prevAmpL, freq.left_amp[k]);
         prevAmpR = std::max(prevAmpR, freq.right_amp[k]);
         int x = freq.x[k];
         if (lastx < x) {
-            lastx = x + 3;
+            lastx = x + 3; // Leave some space between the lines
             int yl = height * 0.5 - prevAmpL * ky - 0.5;
             int yr = height * 0.5 + prevAmpR * ky + 0.5;
             prevAmpL = 0;
             prevAmpR = 0;
             XSetForeground(dis, gc, freq.color[k].ic);
-            XDrawLine(dis, double_buffer, gc, x, yl, x, yr);
+            XDrawLine(dis, back_buffer, gc, x, yl, x, yr);
         }
     }
 
-    XCopyArea(dis, double_buffer, win, gc, 0, 0, width, height, 0, 0);
+    // Show the result
+    XCopyArea(dis, back_buffer, win, gc, 0, 0, width, height, 0, 0);
     XFlush(dis);
 }

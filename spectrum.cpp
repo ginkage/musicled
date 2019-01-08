@@ -19,15 +19,18 @@ Spectrum::~Spectrum() { audio.join_thread(); }
 
 FreqData& Spectrum::process()
 {
+    // First, read both channels
     left.read();
     right.read();
 
+    // Compute FFT for both of them
     fftw_complex* outl = left.execute();
     fftw_complex* outr = right.execute();
 
     int maxF = freq.minK;
     double maxAmp = 0;
 
+    // Find the loudest frequency
     for (int k = freq.minK; k < freq.maxK; k++) {
         double ampl = freq.left_amp[k] = hypot(outl[k][0], outl[k][1]);
         double ampr = freq.right_amp[k] = hypot(outr[k][0], outr[k][1]);
@@ -38,6 +41,7 @@ FreqData& Spectrum::process()
         }
     }
 
+    // Set the global color accordingly
     global->cur_Color = freq.color[maxF];
     return freq;
 }

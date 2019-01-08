@@ -11,6 +11,7 @@ CircularBuffer::CircularBuffer(int n)
 
 void CircularBuffer::write(std::vector<double>& values)
 {
+    // Write values to the buffer, *then* change the current position
     for (int k, j = 0, n = values.size(); j < n; j += k) {
         k = std::min(pos + (n - j), size) - pos;
         std::copy_n(values.begin() + j, k, buffer.begin() + pos);
@@ -20,6 +21,7 @@ void CircularBuffer::write(std::vector<double>& values)
 
 void CircularBuffer::read(std::vector<double>& values)
 {
+    // Read the current position, *then* read values
     int n = values.size(), first = pos - n;
     while (first < 0)
         first += size;

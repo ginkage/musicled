@@ -2,8 +2,8 @@
 
 #include <math.h>
 
-// "Saw" function with specified range
-inline double saw(double val, double p)
+// "Saw" function with specified range, peaks at (p / 2).
+static inline double saw(double val, double p)
 {
     double x = val / p;
     return p * fabs(x - floor(x + 0.5));
@@ -29,11 +29,15 @@ FreqData::FreqData(int n1, unsigned int rate)
         double frequency = k * minFreq;
         double fnote = log(frequency * fcoef) / base; // note = 12 * Octave + Note
         double spectre = fmod(fnote, 12); // spectre is within [0, 12)
-        double R = saw(spectre - 6, 12);
-        double G = saw(spectre - 10, 12);
-        double B = saw(spectre - 2, 12);
-        double mn = saw(spectre - 2, 4);
+        double R = saw(spectre - 6, 12); // Peaks at C (== 0)
+        double G = saw(spectre - 10, 12); // Peaks at E (== 4)
+        double B = saw(spectre - 2, 12); // Peaks at G# (== 8)
+        double mn = saw(spectre - 2, 4); // Minimum of them is also periodic
 
+        // Technically, the formula for every component is:
+        // Result == 255 * (C - Min) / (Max - Min),
+        // where Min and Max are the smallest and the biggest of { R, G, B },
+        // but Min is periodic, and (Max - Min) == 4, a constant.
         Color c;
         c.r = (int)((R - mn) * 63.75 + 0.5);
         c.g = (int)((G - mn) * 63.75 + 0.5);

@@ -20,6 +20,7 @@ void sig_handler(int sig_no)
 GlobalState::GlobalState()
     : terminate(false)
 {
+    // Handle Ctrl+C
     struct sigaction action;
     memset(&action, 0, sizeof(action));
     g_terminate = &terminate;

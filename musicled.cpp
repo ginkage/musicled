@@ -13,7 +13,7 @@ using hires_clock = std::chrono::high_resolution_clock;
 
 int main(int argc, char* argv[])
 {
-    // Handle Ctrl+C
+    // Init global state for input and output threads
     GlobalState global;
 
     // Init Audio (and start audio input thread)
@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
     // Init X11
     Visualizer video(&global);
 
-    // Init Network (and spawn a thread for every LED strip)
+    // Init Network (and spawn an output thread for every LED strip)
     std::list<Espurna> strips;
     for (int k = 0; k + 2 < argc; k += 2)
         strips.emplace_back(argv[k + 1], argv[k + 2], &global);

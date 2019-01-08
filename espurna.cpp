@@ -21,12 +21,14 @@ Espurna::Espurna(std::string host, std::string api, GlobalState* state)
         exit(EXIT_FAILURE);
     }
     resolved = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
+
+    // Start the output thread immediately
     thread = std::thread([=] { socket_send(); });
 }
 
 Espurna::~Espurna() { thread.join(); }
 
-int socket_connect(std::string& host, in_port_t port)
+static inline int socket_connect(std::string& host, in_port_t port)
 {
     sockaddr_in addr;
     addr.sin_port = htons(port);
@@ -44,6 +46,7 @@ int socket_connect(std::string& host, in_port_t port)
         perror("connect");
         return 0;
     }
+
     return sock;
 }
 
@@ -51,24 +54,22 @@ void Espurna::socket_send()
 {
     std::cout << "Connecting to " << hostname << " as " << resolved << std::endl;
 
-    Color col;
+    Color col; // Last sent color
     char buffer[1024];
+    const char* api = api_key.c_str();
     while (!global->terminate) {
         VSync vsync(60); // Wait between checks
 
         if (col.ic != global->cur_Color.ic) {
             col.ic = global->cur_Color.ic;
-            // std::cout << col.r << "," << col.g << "," << col.b << std::endl;
 
+            // The color has changed, send it to the LED strip!
             int fd = socket_connect(resolved, 80);
             if (fd != 0) {
-                int len
-                    = snprintf(buffer, sizeof(buffer), "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", api_key.c_str(), col.r, col.g, col.b);
-                // std::cout << buffer << std::endl;
-
+                int len = snprintf(buffer, sizeof(buffer), "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", api, col.r, col.g, col.b);
                 if (write(fd, buffer, len) != -1) {
                     if (read(fd, buffer, sizeof(buffer) - 1) != 0) {
-                        // std::cout << buffer << std::endl;
+                        // Print the response if you want
                     }
                 }
                 shutdown(fd, SHUT_RDWR);

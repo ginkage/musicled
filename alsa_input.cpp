@@ -12,7 +12,7 @@ AlsaInput::AlsaInput(GlobalState* state)
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
 
-    // alsa: open device to capture audio
+    // Open ALSA device to capture audio
     int err = snd_pcm_open(&handle, audio_source, SND_PCM_STREAM_CAPTURE, 0);
     if (err < 0) {
         std::cerr << "error opening stream: " << snd_strerror(err) << std::endl;
@@ -20,44 +20,46 @@ AlsaInput::AlsaInput(GlobalState* state)
     }
 
     snd_pcm_hw_params_t* params;
-    snd_pcm_hw_params_alloca(&params); // assembling params
-    snd_pcm_hw_params_any(handle, params); // setting defaults or something
+    snd_pcm_hw_params_alloca(&params); // Allocate parameters on stack
+    snd_pcm_hw_params_any(handle, params); // Set everything to defaults
 
-    // interleaved mode right left right left
+    // Interleaved mode: right, left, right, left
     snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
 
-    // trying to set 16bit
+    // Trying to set 16bit
     snd_pcm_format_t pcm_format = SND_PCM_FORMAT_S16_LE;
     snd_pcm_hw_params_set_format(handle, params, pcm_format);
 
-    // assuming stereo
+    // Assuming stereo
     unsigned int pcm_channels = 2;
     snd_pcm_hw_params_set_channels(handle, params, pcm_channels);
 
-    // trying our rate
+    // Trying our rate
     unsigned int pcm_rate = 44100;
     snd_pcm_hw_params_set_rate_near(handle, params, &pcm_rate, NULL);
 
-    // number of frames per read
+    // Number of frames per read
     snd_pcm_uframes_t pcm_frames = 256;
     snd_pcm_hw_params_set_period_size_near(handle, params, &pcm_frames, NULL);
 
-    err = snd_pcm_hw_params(handle, params); // attempting to set params
+    // Try setting the desired parameters
+    err = snd_pcm_hw_params(handle, params);
     if (err < 0) {
-        std::cerr << "unable to set hw parameters: " << snd_strerror(err) << std::endl;
+        std::cerr << "Unable to set audio parameters: " << snd_strerror(err) << std::endl;
         exit(EXIT_FAILURE);
     }
 
+    // Prepare the audio interface
     err = snd_pcm_prepare(handle);
     if (err < 0) {
-        std::cerr << "cannot prepare audio interface for use: " << snd_strerror(err) << std::endl;
+        std::cerr << "Cannot prepare audio interface for use: " << snd_strerror(err) << std::endl;
         exit(EXIT_FAILURE);
     }
 
-    // getting actual format
+    // Getting the actual format
     snd_pcm_hw_params_get_format(params, &pcm_format);
 
-    // converting result to number of bits
+    // Converting the result to number of bits
     switch (pcm_format) {
     case SND_PCM_FORMAT_S16_LE:
         format = 16;
@@ -73,6 +75,7 @@ AlsaInput::AlsaInput(GlobalState* state)
         break;
     }
 
+    // Get the rest of the parameters
     rate = 0;
     frames = 0;
     channels = 0;
@@ -80,6 +83,7 @@ AlsaInput::AlsaInput(GlobalState* state)
     snd_pcm_hw_params_get_period_size(params, &frames, NULL);
     snd_pcm_hw_params_get_channels(params, &channels);
 
+    // Hope it's successful
     if (format == -1 || rate == 0) {
         std::cerr << "Could not get rate and/or format, quiting..." << std::endl;
         exit(EXIT_FAILURE);
@@ -97,27 +101,31 @@ void AlsaInput::join_thread() { thread.join(); }
 
 void AlsaInput::input_alsa()
 {
-    const int bps = format / 8; // bytes per sample
-    const int stride = bps * channels; // bytes per frame
-    const int loff = bps - 2; // Highest 2 bytes in the first half of a frame
-    const int roff = stride - 2; // Highest 2 bytes in the second half of a frame
+    // Note: in one-channel case, loff and roff will be equal
+    const int bps = format / 8; // Bytes per sample
+    const int stride = bps * channels; // Bytes per frame
+    const int loff = bps - 2; // Highest short in the first half of a frame
+    const int roff = stride - 2; // Highest short in the second half of a frame
     const int size = frames * stride;
 
     std::vector<uint8_t> buffer(size);
     std::vector<double> left_data(frames);
     std::vector<double> right_data(frames);
 
+    // Let's rock
     while (!global->terminate) {
         int err = snd_pcm_readi(handle, buffer.data(), frames);
         if (err == -EPIPE) {
-            std::cerr << "overrun occurred" << std::endl;
+            std::cerr << "Overrun occurred" << std::endl;
+            // Try to recover
             snd_pcm_prepare(handle);
         } else if (err < 0) {
-            std::cerr << "error from read: " << snd_strerror(err) << std::endl;
+            std::cerr << "Error from read: " << snd_strerror(err) << std::endl;
         } else if (err != (int)frames) {
-            std::cerr << "short read, read " << err << " of " << frames << " frames" << std::endl;
+            std::cerr << "Short read, read " << err << " of " << frames << " frames" << std::endl;
+            // Technically, we could still use this data. Whatever.
         } else {
-            // For 32 and 24 bit, we'll drop extra precision
+            // For 32 and 24 bit, we'll drop the extra precision
             int8_t* pleft = (int8_t*)(buffer.data() + loff);
             int8_t* pright = (int8_t*)(buffer.data() + roff);
             for (unsigned int i = 0; i < frames; i++) {
