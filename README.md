@@ -10,8 +10,14 @@ Now, do all that, and also visualize the audio spectrum. 60 times per second. On
 
 ![What it looks like](img/screenshot.png)
 
-OK, maybe it's not that impressive, but it sure is fun, and makes a good Christmas tree decoration that blinks in sync with your festive tunes, or a good party lighting if you happen to have some LED strip in your room, like I do.
+OK, maybe it's not that impressive, but it sure is fun, and makes a good Christmas tree decoration that blinks in sync with your festive tunes, or a good party lighting if you happen to have some LED strips in your room, like I do.
+
+## My Setup
+
+The main use case for me is: there's a device that plays music (it could be a home theater receiver, or just the speakers plugged into my desktop PC), and by plugging a Raspberry Pi-based device into it (using a splitter cable or the "Zone B" feature) I can process that music and control the WiFi LED strip. The LED controller here is irrelevant: I have an H801 and a MagicHome ones, both flashed with ESPurna firmware, and both working equally well.
+
+The device I use is more interesting: it's a Pi Zero bundled with an [AudioInjector Zero](https://www.kickstarter.com/projects/1250664710/audio-injector-zero-sound-card-for-the-raspberry-p) sound card and a [Waveshare 5-inch HDMI display](https://www.waveshare.com/5inch-hdmi-lcd-b.htm) connected to it. Fairly cheap setup that allows me to use music lights with any audio source. This program, though, should work just as well on any other Linux-based computer, ideally the one playing that music in the first place to avoid DAC-to-ADC double conversion.
 
 ## Notes
 
-I won't even deny that the main audio capture and processing core came to life thanks to the [CAVA](https://github.com/karlstav/cava) project. In my defense, I did make a meaningful [contribution](https://github.com/karlstav/cava/issues/211) to it, and I would only be happy if any part of this project were backported to the original one.
+The main audio capture and processing core are loosely based on the [CAVA](https://github.com/karlstav/cava) project.
