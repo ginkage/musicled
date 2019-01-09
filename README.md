@@ -16,13 +16,13 @@ OK, maybe it's not that impressive, but it sure is fun, and makes a good Christm
 
 The main use case for me is: there's a device that plays music (it could be a home theater receiver, or just the speakers plugged into my desktop PC), and by plugging a Raspberry Pi-based device into it (using a splitter cable or the "Zone B" feature) I can process that music and control the WiFi LED strip. The LED WiFi controller here is irrelevant: I have H801 and MagicHome ones, both flashed with ESPurna firmware, and both working equally well.
 
-![LED WiFi controllers](img/espurna.png)
+![LED WiFi controllers](img/espurna.jpg)
 
 The device I use to achieve my goal is more interesting: it's a Pi Zero bundled with an [AudioInjector Zero](https://www.kickstarter.com/projects/1250664710/audio-injector-zero-sound-card-for-the-raspberry-p) sound card and a [Waveshare 5-inch HDMI display](https://www.waveshare.com/5inch-hdmi-lcd-b.htm) connected to it. Fairly cheap setup that allows me to use music lights with any audio source. This program, though, should work just as well on any other Linux-based computer, ideally the one playing that music in the first place to avoid DAC-to-ADC double conversion.
 
-![Visualizer from the front](img/front.png)
+![Visualizer from the front](img/front.jpg)
 
-![Visualizer from the back](img/back.png)
+![Visualizer from the back](img/back.jpg)
 
 ## Analysis Quality vs. Performance
 
