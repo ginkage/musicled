@@ -8,7 +8,7 @@ The idea is pretty common: take audio input stream (using ALSA), put it through 
 
 Now, do all that, and also visualize the audio spectrum. 60 times per second. On a Raspberry Pi Zero. In C++.
 
-[What it looks like](img/screenshot.png)
+![What it looks like](img/screenshot.png)
 
 OK, maybe it's not that impressive, but it sure is fun, and makes a good Christmas tree decoration that blinks in sync with your festive tunes, or a good party lighting if you happen to have some LED strip in your room, like I do.
 
