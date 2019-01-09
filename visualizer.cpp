@@ -18,6 +18,7 @@ Visualizer::Visualizer(GlobalState* state)
     screen = DefaultScreen(dis);
     unsigned long black = BlackPixel(dis, screen), white = WhitePixel(dis, screen);
 
+    // Create window
     win = XCreateSimpleWindow(dis, DefaultRootWindow(dis), 0, 0, 648, 360, 0, black, black);
     XSetStandardProperties(dis, win, "MusicLED", "Music", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
@@ -28,8 +29,24 @@ Visualizer::Visualizer(GlobalState* state)
     XMapRaised(dis, win);
     XSetForeground(dis, gc, white);
 
+    // Listen for window close
     close = XInternAtom(dis, "WM_DELETE_WINDOW", False);
     XSetWMProtocols(dis, win, &close, 1);
+
+    // Maximize window
+    XEvent xev;
+    memset(&xev, 0, sizeof(xev));
+    xev.xclient.type = ClientMessage;
+    xev.xclient.window = win;
+    xev.xclient.message_type = XInternAtom(dis, "_NET_WM_STATE", False);
+    xev.xclient.format = 32;
+    xev.xclient.data.l[0] = 1; // _NET_WM_STATE_ADD
+    xev.xclient.data.l[1] = XInternAtom(dis, "_NET_WM_STATE_MAXIMIZED_HORZ", False);
+    xev.xclient.data.l[2] = XInternAtom(dis, "_NET_WM_STATE_MAXIMIZED_VERT", False);
+    xev.xclient.data.l[3] = 1;
+
+    XSendEvent(dis, DefaultRootWindow(dis), False,
+        SubstructureRedirectMask | SubstructureNotifyMask, &xev);
 };
 
 Visualizer::~Visualizer()

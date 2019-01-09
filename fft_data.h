@@ -20,7 +20,7 @@ public:
 private:
     int size; // Number of samples to analyze
     fftw_plan plan; // FFT calculation parameters
-    std::vector<double> in; // Array to read input data into
+    double* in; // Array to read input data into
     fftw_complex* out; // Memory-aligned array to store calculation result
     CircularBuffer* buffer; // Buffer to read samples from
 };

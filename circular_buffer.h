@@ -11,7 +11,7 @@ public:
     void write(std::vector<double>& values);
 
     // Retrieve latest samples in the circular buffer
-    void read(std::vector<double>& values);
+    void read(double* values, int n);
 
 private:
     std::vector<double> buffer; // Backing array
