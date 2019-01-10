@@ -1,10 +1,12 @@
-BIN := musicled
-SRCS := $(wildcard *.cpp)
-
+SRCDIR := src
 OBJDIR := .objs
 DEPDIR := .deps
-OBJS := $(patsubst %,$(OBJDIR)/%.o,$(basename $(SRCS)))
-DEPS := $(patsubst %,$(DEPDIR)/%.d,$(basename $(SRCS)))
+
+BIN := musicled
+
+SRCS := $(wildcard $(SRCDIR)/*.cpp)
+OBJS := $(SRCS:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
+DEPS := $(SRCS:$(SRCDIR)/%.cpp=$(DEPDIR)/%.d)
 
 $(shell mkdir -p $(dir $(OBJS)) >/dev/null)
 $(shell mkdir -p $(dir $(DEPS)) >/dev/null)
@@ -21,7 +23,7 @@ DEPFLAGS = -MT $@ -MD -MP -MF $(DEPDIR)/$*.d
 $(BIN): $(OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-$(OBJDIR)/%.o: %.cpp
+$(OBJS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
 	$(CXX) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 -include $(DEPS)
