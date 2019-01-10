@@ -1,4 +1,4 @@
-# Music-driven LED strip visualizer
+# Music-Driven WiFi LED Strip Visualizer
 
 Simple (like, really simple) Linux program that takes audio input from ALSA and sets an LED strip color in sync with the music.
 
@@ -6,7 +6,7 @@ Simple (like, really simple) Linux program that takes audio input from ALSA and 
 
 The idea is pretty common: take audio input stream (using ALSA), put it through FFT (using [FFTW](http://www.fftw.org/)), take the "loudest" frequency (trivial), assign a color to it (using [Chromatic scale](https://en.wikipedia.org/wiki/Chromatic_scale), with all [12 notes](https://www.youtube.com/watch?v=IT9CPoe5LnM)), send that color to a WiFi-controlled LED strip or a few (I'm using controllers flashed with [ESPurna](https://github.com/xoseperez/espurna)).
 
-Now, do all that, and also visualize the audio spectrum, 60 times per second, on a Raspberry Pi Zero.
+Now, do all that, and also visualize the audio spectrum, 60 times per second, on a Raspberry Pi Zero W.
 
 ![What it looks like](img/screenshot.png)
 
@@ -18,7 +18,7 @@ The main use case for me is: there's a device that plays music (it could be a ho
 
 ![LED WiFi controllers](img/espurna.jpg)
 
-The device I use to achieve my goal is more interesting: it's a Pi Zero bundled with an [AudioInjector Zero](https://www.kickstarter.com/projects/1250664710/audio-injector-zero-sound-card-for-the-raspberry-p) sound card and a [Waveshare 5-inch HDMI display](https://www.waveshare.com/5inch-hdmi-lcd-b.htm) connected to it. Fairly cheap setup that allows me to use music lights with any audio source. This program, though, should work just as well on any other Linux-based computer, ideally the one playing that music in the first place to avoid DAC-to-ADC double conversion.
+The device I use to achieve my goal is more interesting: it's a Raspberry Pi Zero W bundled with an [AudioInjector Zero](https://www.kickstarter.com/projects/1250664710/audio-injector-zero-sound-card-for-the-raspberry-p) sound card and a [Waveshare 5-inch HDMI display](https://www.waveshare.com/5inch-hdmi-lcd-b.htm) connected to it. Fairly cheap setup that allows me to use music lights with any audio source. This program, though, should work just as well on any other Linux-based computer, ideally the one playing that music in the first place to avoid DAC-to-ADC double conversion.
 
 ![Visualizer from the front](img/front.jpg)
 
@@ -41,6 +41,18 @@ DISPLAY=:0 ./musicled ESPURNA-DDC430 B9110C0303D3A5B7 ESPURNA-4BD512 527877A979A
 If there is no display to be found (or "DISPLAY=:0" is omitted when running from SSH shell), it starts in a headless mode, using less CPU.
 
 When the application is running, either press Ctrl+C in the console, or press 'q' on the keyboard that's connected to the device.
+
+## Not Implemented
+
+Things that could be added or improved (feel free to contribute!):
+
+* Command line usage hint;
+* PulseAudio support (should be easy to make a drop-in replacement class);
+* Config file support (at least to choose the input device);
+* Multi-color / addressable LED strip support;
+* Support for MQTT, UDP, other controllers or firmwares;
+* Wider range of input formats (e.g. floating point samples);
+* etc.
 
 ## Analysis Quality vs. Performance
 
