@@ -2,6 +2,7 @@
 
 #include "global_state.h"
 
+#include <curl/curl.h>
 #include <string>
 #include <thread>
 
@@ -14,11 +15,12 @@ public:
     ~Espurna();
 
 private:
+    void send_message(const char* topic, const char* value, const char* api);
     void socket_send();
 
+    CURL* curl;
     std::string hostname; // Host name of the LED strip
     std::string api_key; // API key for the RESTless API
-    std::string resolved; // Resolved IP address
     GlobalState* global; // Global state for thread termination
     std::thread thread; // Output thread
 };

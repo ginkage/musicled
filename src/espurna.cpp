@@ -1,62 +1,59 @@
 #include "espurna.h"
 #include "vsync.h"
 
-#include <arpa/inet.h>
 #include <iostream>
-#include <netdb.h>
-#include <netinet/tcp.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <unistd.h>
+
+size_t write_data(void* buffer __attribute__((unused)), size_t size, size_t nmemb,
+    void* userp __attribute__((unused)))
+{
+    return size * nmemb;
+}
 
 Espurna::Espurna(std::string host, std::string api, GlobalState* state)
     : hostname(host)
     , api_key(api)
     , global(state)
 {
-    hostent* host_entry = gethostbyname(host.c_str());
-    if (host_entry == nullptr) {
-        std::cerr << "Could not look up IP address for " << host << std::endl;
+    curl_global_init(CURL_GLOBAL_NOTHING);
+
+    curl = curl_easy_init();
+    if (!curl) {
+        std::cerr << "Failed to init libCURL" << std::endl;
         exit(EXIT_FAILURE);
     }
-    resolved = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
+
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
 
     // Start the output thread immediately
     thread = std::thread([=] { socket_send(); });
 }
 
-Espurna::~Espurna() { thread.join(); }
-
-static inline int socket_connect(std::string& host, in_port_t port)
+Espurna::~Espurna()
 {
-    sockaddr_in addr;
-    addr.sin_port = htons(port);
-    addr.sin_family = AF_INET;
-    inet_aton(host.c_str(), &addr.sin_addr);
-    int sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP), on;
-    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&on, sizeof(int));
+    thread.join();
+    curl_easy_cleanup(curl);
+}
 
-    if (sock == -1) {
-        perror("setsockopt");
-        return 0;
-    }
+void Espurna::send_message(const char* topic, const char* value, const char* api)
+{
+    char request[128], content[128];
+    snprintf(request, sizeof(request), "http://%s/api/%s", hostname.data(), topic);
+    snprintf(content, sizeof(content), "apikey=%s&value=%s", api, value);
 
-    if (connect(sock, (sockaddr*)&addr, sizeof(sockaddr_in)) == -1) {
-        perror("connect");
-        return 0;
-    }
-
-    return sock;
+    curl_easy_setopt(curl, CURLOPT_URL, request);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, content);
+    curl_easy_perform(curl);
 }
 
 void Espurna::socket_send()
 {
-    std::cout << "Connecting to " << hostname << " as " << resolved << std::endl;
+    const char* api = api_key.c_str();
+    send_message("relay/0", "1", api);
 
     Color col; // Last sent color
-    char buffer[1024];
-    const char* api = api_key.c_str();
+    char value[16];
     while (!global->terminate) {
         VSync vsync(60); // Wait between checks
 
@@ -64,18 +61,10 @@ void Espurna::socket_send()
             col.ic = global->cur_Color.ic;
 
             // The color has changed, send it to the LED strip!
-            int fd = socket_connect(resolved, 80);
-            if (fd != 0) {
-                int len = snprintf(buffer, sizeof(buffer),
-                    "GET /api/rgb?apikey=%s&value=%d,%d,%d HTTP/1.1\n\n", api, col.r, col.g, col.b);
-                if (write(fd, buffer, len) != -1) {
-                    if (read(fd, buffer, sizeof(buffer) - 1) != 0) {
-                        // Print the response if you want
-                    }
-                }
-                shutdown(fd, SHUT_RDWR);
-                close(fd);
-            }
+            snprintf(value, sizeof(value), "%d,%d,%d", col.r, col.g, col.b);
+            send_message("rgb", value, api);
         }
     }
+
+    send_message("relay/0", "0", api);
 }
