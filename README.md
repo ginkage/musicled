@@ -24,6 +24,13 @@ The device I use to achieve my goal is more interesting: it's a Raspberry Pi Zer
 
 ![Visualizer from the back](img/back.jpg)
 
+## Dependencies
+
+Install the necessary libraries and tools by running:
+```
+sudo apt-get install libx11-dev libasound-dev libfftw3-dev libcurl4-openssl-dev gcc build-essential
+```
+
 ## Running
 
 After running "make" command, the application is started with a command like:
