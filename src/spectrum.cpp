@@ -3,9 +3,7 @@
 #include <algorithm>
 #include <math.h>
 
-#define N 2048
-
-Spectrum::Spectrum(GlobalState* state)
+Spectrum::Spectrum(GlobalState* state, int N)
     : global(state)
     , audio(state)
     , freq(N / 2, audio.get_rate())

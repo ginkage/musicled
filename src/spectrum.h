@@ -11,7 +11,7 @@
 // The calculated color is stored in the global state.
 class Spectrum {
 public:
-    Spectrum(GlobalState* state);
+    Spectrum(GlobalState* state, int N);
     ~Spectrum();
 
     // Read the latest samples, perform FFT, analyze the result

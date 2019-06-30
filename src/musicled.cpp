@@ -17,7 +17,7 @@ int main(int argc, char* argv[])
     GlobalState global;
 
     // Init Audio (and start audio input thread)
-    Spectrum spec(&global);
+    Spectrum spec(&global, 2048);
 
     // Init X11
     Visualizer video(&global);
