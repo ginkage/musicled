@@ -5,4 +5,4 @@ Icon=utilities-terminal
 Comment=MusicLED
 Name=MusicLED
 Terminal=false
-Exec=/home/pi/musicled/musicled ESPURNA-4BD512 527877A979AFE2A2
+Exec=/home/pi/musicled/musicled 192.168.86.56 25E316CE85D2D879

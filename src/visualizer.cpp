@@ -113,7 +113,7 @@ void Visualizer::redraw(FreqData& freq)
     handle_resize(freq);
 
     unsigned int width = last_width, height = last_height;
-    double ky = height * 0.25 / 65536.0;
+    double ky = height /* * 0.25 */ / 65536.0;
     double prevAmpL = 0;
     double prevAmpR = 0;
     int lastx = -1;
@@ -128,7 +128,7 @@ void Visualizer::redraw(FreqData& freq)
         prevAmpR = std::max(prevAmpR, freq.right_amp[k]);
         int x = freq.x[k];
         if (lastx < x) {
-            lastx = x + 3; // Leave some space between the lines
+            lastx = x;// + 3; // Leave some space between the lines
             int yl = height * 0.5 - prevAmpL * ky - 0.5;
             int yr = height * 0.5 + prevAmpR * ky + 0.5;
             prevAmpL = 0;
