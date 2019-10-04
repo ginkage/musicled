@@ -28,11 +28,11 @@ int main(int argc, char* argv[])
         strips.emplace_back(argv[k + 1], argv[k + 2], &global);
 
     const int framerate = 60;
-    Fps fps;
+    //Fps fps;
     hires_clock::time_point vstart = hires_clock::now();
     while (!global.terminate) {
         VSync vsync(framerate, &vstart);
-        fps.tick(framerate);
+        //fps.tick(framerate);
         FreqData& freq = spec.process();
         video.redraw(freq);
     }
