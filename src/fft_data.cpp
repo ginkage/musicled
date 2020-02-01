@@ -19,10 +19,9 @@ FftData::~FftData()
     fftw_free(in);
 }
 
-void FftData::read() { buffer->read(reinterpret_cast<Sample*>(in), size); }
-
-fftw_complex* FftData::execute()
+Sample* FftData::execute()
 {
+    buffer->read(reinterpret_cast<Sample*>(in), size);
     fftw_execute(plan);
-    return out;
+    return reinterpret_cast<Sample*>(out);
 }

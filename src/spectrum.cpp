@@ -13,11 +13,8 @@ Spectrum::~Spectrum() { audio.join_thread(); }
 
 FreqData& Spectrum::process()
 {
-    // First, read both channels
-    fft.read();
-
-    // Compute FFT for both of them
-    Sample* out = reinterpret_cast<Sample*>(fft.execute());
+    // Compute FFT for both channels
+    Sample* out = fft.execute();
 
     int maxF = freq.minK;
     double maxAmp = 0;

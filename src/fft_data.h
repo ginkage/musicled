@@ -12,11 +12,8 @@ public:
     FftData(int n, CircularBuffer<Sample>* buf);
     ~FftData();
 
-    // Read the latest N samples from the circular buffer
-    void read();
-
-    // Compute the FFT output, returns an array
-    fftw_complex* execute();
+    // Compute the FFT output using the latest N samples from the circular buffer
+    Sample* execute();
 
 private:
     int size; // Number of samples to analyze
