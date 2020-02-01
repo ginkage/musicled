@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-FftData::FftData(int n, CircularBuffer<std::complex<double>>* buf)
+FftData::FftData(int n, CircularBuffer<Sample>* buf)
     : size(n)
     , buffer(buf)
 {
@@ -19,7 +19,7 @@ FftData::~FftData()
     fftw_free(in);
 }
 
-void FftData::read() { buffer->read(reinterpret_cast<std::complex<double>*>(in), size); }
+void FftData::read() { buffer->read(reinterpret_cast<Sample*>(in), size); }
 
 fftw_complex* FftData::execute()
 {

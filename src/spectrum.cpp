@@ -17,7 +17,7 @@ FreqData& Spectrum::process()
     fft.read();
 
     // Compute FFT for both of them
-    std::complex<double>* out = reinterpret_cast<std::complex<double>*>(fft.execute());
+    Sample* out = reinterpret_cast<Sample*>(fft.execute());
 
     int maxF = freq.minK;
     double maxAmp = 0;

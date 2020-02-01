@@ -113,7 +113,7 @@ void AlsaInput::input_alsa()
     const double norm = 1.0 / 32768.0;
 
     std::vector<uint8_t> buffer(frames * stride);
-    std::vector<std::complex<double>> data(frames);
+    std::vector<Sample> data(frames);
 
     // Let's rock
     while (!global->terminate) {
@@ -130,7 +130,7 @@ void AlsaInput::input_alsa()
             int8_t* pright = reinterpret_cast<int8_t*>(buffer.data() + roff);
             for (int i = 0; i < n; i++) {
                 // Store normalized data within [-1, 1) range
-                data[i] = std::complex<double>(*(int16_t*)pleft, *(int16_t*)pright) * norm;
+                data[i] = Sample(*(int16_t*)pleft, *(int16_t*)pright) * norm;
                 pleft += stride;
                 pright += stride;
             }
