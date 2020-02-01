@@ -110,6 +110,8 @@ void AlsaInput::input_alsa()
     // Highest short in the second half of a frame, e.g. 2 (4 for 24-bit, 6 for 32-bit)
     const int roff = stride - 2;
 
+    const double norm = 1.0 / 32768.0;
+
     std::vector<uint8_t> buffer(frames * stride);
     std::vector<std::complex<double>> data(frames);
 
@@ -127,7 +129,8 @@ void AlsaInput::input_alsa()
             int8_t* pleft = reinterpret_cast<int8_t*>(buffer.data() + loff);
             int8_t* pright = reinterpret_cast<int8_t*>(buffer.data() + roff);
             for (int i = 0; i < n; i++) {
-                data[i] = std::complex<double>(*(int16_t*)pleft, *(int16_t*)pright);
+                // Store normalized data within [-1, 1) range
+                data[i] = std::complex<double>(*(int16_t*)pleft, *(int16_t*)pright) * norm;
                 pleft += stride;
                 pright += stride;
             }
