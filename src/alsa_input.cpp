@@ -7,8 +7,7 @@
 
 AlsaInput::AlsaInput(GlobalState* state)
     : global(state)
-    , left(65536)
-    , right(65536)
+    , samples(65536)
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
 
@@ -102,15 +101,18 @@ void AlsaInput::join_thread() { thread.join(); }
 void AlsaInput::input_alsa()
 {
     // Note: in one-channel case, loff and roff will be equal
-    const int bps = format / 8; // Bytes per sample
-    const int stride = bps * channels; // Bytes per frame
-    const int loff = bps - 2; // Highest short in the first half of a frame
-    const int roff = stride - 2; // Highest short in the second half of a frame
+    // Bytes per sample, e.g. 2 for 16-bit, 3 for 24-bit, 4 for 32-bit
+    const int bps = format / 8;
+    // Bytes per frame, e.g. 4 for stereo (6 for 24-bit, 8 for 32-bit)
+    const int stride = bps * channels;
+    // Highest short in the first half of a frame, e.g. 0 (1 for 24-bit, 2 for 32-bit)
+    const int loff = bps - 2;
+    // Highest short in the second half of a frame, e.g. 2 (4 for 24-bit, 6 for 32-bit)
+    const int roff = stride - 2;
     const int size = frames * stride;
 
     std::vector<uint8_t> buffer(size);
-    std::vector<double> left_data(frames);
-    std::vector<double> right_data(frames);
+    std::vector<std::complex<double>> data(frames);
 
     // Let's rock
     while (!global->terminate) {
@@ -129,14 +131,12 @@ void AlsaInput::input_alsa()
             int8_t* pleft = (int8_t*)(buffer.data() + loff);
             int8_t* pright = (int8_t*)(buffer.data() + roff);
             for (unsigned int i = 0; i < frames; i++) {
-                left_data[i] = *(int16_t*)pleft;
-                right_data[i] = *(int16_t*)pright;
+                data[i] = std::complex<double>(*(int16_t*)pleft, *(int16_t*)pright);
                 pleft += stride;
                 pright += stride;
             }
 
-            left.write(left_data);
-            right.write(right_data);
+            samples.write(data);
         }
     }
 }

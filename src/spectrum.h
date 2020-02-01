@@ -21,5 +21,5 @@ private:
     GlobalState* global; // Global state to store the current color
     AlsaInput audio; // Audio input thread
     FreqData freq; // Precomputed per-frequency data
-    FftData left, right; // FFTW3 computations for the left and right channels
+    FftData fft; // FFTW3 computations for the left and right channels
 };

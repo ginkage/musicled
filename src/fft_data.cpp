@@ -2,15 +2,14 @@
 
 #include <string.h>
 
-FftData::FftData(int n, CircularBuffer* buf)
+FftData::FftData(int n, CircularBuffer<std::complex<double>>* buf)
     : size(n)
     , buffer(buf)
 {
-    int half_n = n / 2 + 1;
-    in = (double*)fftw_malloc(n * sizeof(double));
-    out = fftw_alloc_complex(half_n);
-    plan = fftw_plan_dft_r2c_1d(n, in, out, FFTW_MEASURE);
-    memset(out, 0, half_n * sizeof(fftw_complex));
+    in = fftw_alloc_complex(n);
+    out = fftw_alloc_complex(n);
+    plan = fftw_plan_dft_1d(n, in, out, FFTW_FORWARD, FFTW_MEASURE);
+    memset(out, 0, n * sizeof(fftw_complex));
 }
 
 FftData::~FftData()
@@ -20,7 +19,7 @@ FftData::~FftData()
     fftw_free(in);
 }
 
-void FftData::read() { buffer->read(in, size); }
+void FftData::read() { buffer->read(reinterpret_cast<std::complex<double>*>(in), size); }
 
 fftw_complex* FftData::execute()
 {

@@ -4,6 +4,7 @@
 #include "global_state.h"
 
 #include <alsa/asoundlib.h>
+#include <complex>
 #include <thread>
 
 // ALSA sound input implementation.
@@ -21,8 +22,7 @@ public:
     void join_thread();
 
     unsigned int get_rate() { return rate; }
-    CircularBuffer* get_left() { return &left; }
-    CircularBuffer* get_right() { return &right; }
+    CircularBuffer<std::complex<double>>* get_data() { return &samples; }
 
 private:
     void input_alsa();
@@ -32,8 +32,7 @@ private:
     unsigned int channels; // Number of channels
 
     GlobalState* global; // Global state for thread termination
-    CircularBuffer left; // Left channel samples
-    CircularBuffer right; // Right channel samples
+    CircularBuffer<std::complex<double>> samples; // Audio samples
 
     snd_pcm_t* handle; // ALSA sound device handle
     snd_pcm_uframes_t frames; // Number of samples per single read

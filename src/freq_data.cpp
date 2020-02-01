@@ -13,8 +13,7 @@ FreqData::FreqData(int n1, unsigned int rate)
     : color(n1)
     , note(n1)
     , x(n1)
-    , left_amp(n1)
-    , right_amp(n1)
+    , amp(n1)
 {
     double maxFreq = 2 * n1;
     double minFreq = rate / maxFreq;

@@ -6,9 +6,8 @@
 Spectrum::Spectrum(GlobalState* state, int N)
     : global(state)
     , audio(state)
-    , freq(N / 2, audio.get_rate())
-    , left(N, audio.get_left())
-    , right(N, audio.get_right())
+    , freq(N, audio.get_rate())
+    , fft(N, audio.get_data())
 {
     audio.start_thread();
 }
@@ -18,21 +17,17 @@ Spectrum::~Spectrum() { audio.join_thread(); }
 FreqData& Spectrum::process()
 {
     // First, read both channels
-    left.read();
-    right.read();
+    fft.read();
 
     // Compute FFT for both of them
-    fftw_complex* outl = left.execute();
-    fftw_complex* outr = right.execute();
+    fftw_complex* out = fft.execute();
 
     int maxF = freq.minK;
     double maxAmp = 0;
 
     // Find the loudest frequency
     for (int k = freq.minK; k < freq.maxK; k++) {
-        double ampl = freq.left_amp[k] = hypot(outl[k][0], outl[k][1]);
-        double ampr = freq.right_amp[k] = hypot(outr[k][0], outr[k][1]);
-        double amp = std::max(ampl, ampr);
+        double amp = freq.amp[k] = hypot(out[k][0], out[k][1]);
         if (amp > maxAmp) {
             maxAmp = amp;
             maxF = k;

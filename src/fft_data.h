@@ -2,13 +2,14 @@
 
 #include "circular_buffer.h"
 
+#include <complex>
 #include <fftw3.h>
 #include <vector>
 
 // FFTW3 computational engine for the specified circular buffer.
 class FftData {
 public:
-    FftData(int n, CircularBuffer* buf);
+    FftData(int n, CircularBuffer<std::complex<double>>* buf);
     ~FftData();
 
     // Read the latest N samples from the circular buffer
@@ -20,7 +21,7 @@ public:
 private:
     int size; // Number of samples to analyze
     fftw_plan plan; // FFT calculation parameters
-    double* in; // Array to read input data into
+    fftw_complex* in; // Array to read input data into
     fftw_complex* out; // Memory-aligned array to store calculation result
-    CircularBuffer* buffer; // Buffer to read samples from
+    CircularBuffer<std::complex<double>>* buffer; // Buffer to read samples from
 };

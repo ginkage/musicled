@@ -113,10 +113,10 @@ void Visualizer::redraw(FreqData& freq)
     handle_resize(freq);
 
     unsigned int width = last_width, height = last_height;
-    double ky = height /* * 0.25 */ / 65536.0;
-    double prevAmpL = 0;
-    double prevAmpR = 0;
+    double ky = height * 0.25 / 65536.0;
+    double prevAmp = 0;
     int lastx = -1;
+    int bottom = height;
 
     // Clear with black
     XSetForeground(dis, gc, 0);
@@ -124,17 +124,14 @@ void Visualizer::redraw(FreqData& freq)
 
     // Draw the lines
     for (int k = freq.minK; k < freq.maxK; k++) {
-        prevAmpL = std::max(prevAmpL, freq.left_amp[k]);
-        prevAmpR = std::max(prevAmpR, freq.right_amp[k]);
+        prevAmp = std::max(prevAmp, freq.amp[k]);
         int x = freq.x[k];
         if (lastx < x) {
-            lastx = x;// + 3; // Leave some space between the lines
-            int yl = height * 0.5 - prevAmpL * ky - 0.5;
-            int yr = height * 0.5 + prevAmpR * ky + 0.5;
-            prevAmpL = 0;
-            prevAmpR = 0;
+            lastx = x; // + 3; // Leave some space between the lines
+            int y = bottom - prevAmp * ky - 0.5;
+            prevAmp = 0;
             XSetForeground(dis, gc, freq.color[k].ic);
-            XDrawLine(dis, back_buffer, gc, x, yl, x, yr);
+            XDrawLine(dis, back_buffer, gc, x, bottom, x, y);
         }
     }
 
