@@ -1,8 +1,5 @@
 #include "spectrum.h"
 
-#include <algorithm>
-#include <math.h>
-
 Spectrum::Spectrum(GlobalState* state, int N)
     : global(state)
     , audio(state)
@@ -20,14 +17,14 @@ FreqData& Spectrum::process()
     fft.read();
 
     // Compute FFT for both of them
-    fftw_complex* out = fft.execute();
+    std::complex<double>* out = reinterpret_cast<std::complex<double>*>(fft.execute());
 
     int maxF = freq.minK;
     double maxAmp = 0;
 
     // Find the loudest frequency
     for (int k = freq.minK; k < freq.maxK; k++) {
-        double amp = freq.amp[k] = hypot(out[k][0], out[k][1]);
+        double amp = freq.amp[k] = std::abs(out[k]);
         if (amp > maxAmp) {
             maxAmp = amp;
             maxF = k;
