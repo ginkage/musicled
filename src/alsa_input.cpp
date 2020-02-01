@@ -109,34 +109,30 @@ void AlsaInput::input_alsa()
     const int loff = bps - 2;
     // Highest short in the second half of a frame, e.g. 2 (4 for 24-bit, 6 for 32-bit)
     const int roff = stride - 2;
-    const int size = frames * stride;
 
-    std::vector<uint8_t> buffer(size);
+    std::vector<uint8_t> buffer(frames * stride);
     std::vector<std::complex<double>> data(frames);
 
     // Let's rock
     while (!global->terminate) {
-        int err = snd_pcm_readi(handle, buffer.data(), frames);
-        if (err == -EPIPE) {
+        int n = snd_pcm_readi(handle, buffer.data(), frames);
+        if (n == -EPIPE) {
             std::cerr << "Overrun occurred" << std::endl;
             // Try to recover
             snd_pcm_prepare(handle);
-        } else if (err < 0) {
-            std::cerr << "Error from read: " << snd_strerror(err) << std::endl;
-        } else if (err != (int)frames) {
-            std::cerr << "Short read, read " << err << " of " << frames << " frames" << std::endl;
-            // Technically, we could still use this data. Whatever.
+        } else if (n < 0) {
+            std::cerr << "Error from read: " << snd_strerror(n) << std::endl;
         } else {
             // For 32 and 24 bit, we'll drop the extra precision
-            int8_t* pleft = (int8_t*)(buffer.data() + loff);
-            int8_t* pright = (int8_t*)(buffer.data() + roff);
-            for (unsigned int i = 0; i < frames; i++) {
+            int8_t* pleft = reinterpret_cast<int8_t*>(buffer.data() + loff);
+            int8_t* pright = reinterpret_cast<int8_t*>(buffer.data() + roff);
+            for (int i = 0; i < n; i++) {
                 data[i] = std::complex<double>(*(int16_t*)pleft, *(int16_t*)pright);
                 pleft += stride;
                 pright += stride;
             }
 
-            samples.write(data);
+            samples.write(data, n);
         }
     }
 }
