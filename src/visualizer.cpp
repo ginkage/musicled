@@ -3,6 +3,7 @@
 #include <X11/Xos.h>
 #include <X11/Xutil.h>
 #include <algorithm>
+#include <cmath>
 
 Visualizer::Visualizer(GlobalState* state)
     : global(state)

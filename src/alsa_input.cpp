@@ -1,7 +1,7 @@
 #include "alsa_input.h"
 
+#include <cinttypes>
 #include <iostream>
-#include <stdint.h>
 #include <stdlib.h>
 #include <vector>
 
@@ -136,7 +136,7 @@ void AlsaInput::input_alsa()
                 pright += stride;
             }
 
-            sync->produce([&] { samples.write(data, n); });
+            sync->produce([&] { samples.write(data.data(), n); });
         }
     }
 }

@@ -17,12 +17,12 @@ public:
     }
 
     // Replace oldest samples in the circular buffer with input values
-    void write(std::vector<T>& values, int n)
+    void write(T* values, int n)
     {
         // Write values to the buffer, *then* change the current position
         for (int k, j = 0; j < n; j += k) {
             k = std::min(pos + (n - j), size) - pos;
-            std::copy_n(values.begin() + j, k, buffer.begin() + pos);
+            std::copy_n(values + j, k, buffer.begin() + pos);
             pos = (pos + k) % size;
         }
 
@@ -56,6 +56,8 @@ public:
     }
 
     int64_t get_latest() { return total_written; }
+
+    std::vector<T>& get_data() { return buffer; }
 
 private:
     std::vector<T> buffer; // Backing array

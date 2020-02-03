@@ -17,9 +17,11 @@ public:
 
 private:
     void beat_detect();
+    void compute_energy();
 
     GlobalState* global; // Global state for thread termination
     CircularBuffer<Sample>* samples; // Audio samples
+    CircularBuffer<double> energy;
     std::vector<Sample> values;
     std::thread thread; // Compute thread
     std::shared_ptr<ThreadSync> sync;
