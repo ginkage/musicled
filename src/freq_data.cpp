@@ -18,8 +18,8 @@ FreqData::FreqData(int n1, unsigned int rate)
     double maxFreq = 2 * n1;
     double minFreq = rate / maxFreq;
     double base = std::log(std::pow(2, 1.0 / 12.0));
-    double fcoef
-        = std::pow(2, 57.0 / 12.0) / 440.0; // Frequency 440 is a note number 57 = 12 * 4 + 9
+    // Frequency 440 is a note number 57 = 12 * 4 + 9
+    double fcoef = std::pow(2, 57.0 / 12.0) / 440.0;
 
     // Notes in [36, 108] range, i.e. 6 octaves
     minK = std::ceil(std::exp(35 * base) / (minFreq * fcoef));
