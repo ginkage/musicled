@@ -28,7 +28,7 @@ Espurna::Espurna(std::string host, std::string api, GlobalState* state)
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
 
     // Start the output thread immediately
-    thread = std::thread([=] { socket_send(); });
+    thread = std::thread([this] { socket_send(); });
 }
 
 Espurna::~Espurna()

@@ -5,9 +5,10 @@
 #include <stdlib.h>
 #include <vector>
 
-AlsaInput::AlsaInput(GlobalState* state)
+AlsaInput::AlsaInput(GlobalState* state, std::shared_ptr<ThreadSync> ts)
     : global(state)
     , samples(65536)
+    , sync(ts)
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
 
@@ -93,7 +94,7 @@ AlsaInput::~AlsaInput() { snd_pcm_close(handle); }
 
 void AlsaInput::start_thread()
 {
-    thread = std::thread([=] { input_alsa(); });
+    thread = std::thread([this] { input_alsa(); });
 }
 
 void AlsaInput::join_thread() { thread.join(); }
@@ -135,7 +136,7 @@ void AlsaInput::input_alsa()
                 pright += stride;
             }
 
-            samples.write(data, n);
+            sync->produce([&] { samples.write(data, n); });
         }
     }
 }
