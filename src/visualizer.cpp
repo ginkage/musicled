@@ -114,7 +114,7 @@ void Visualizer::redraw(FreqData& freq)
     handle_resize(freq);
 
     unsigned int width = last_width, height = last_height;
-    double ky = height * 0.125;
+    double ky = height / 64.0;
     double prevAmp = 0;
     int lastx = -1;
     int bottom = height;

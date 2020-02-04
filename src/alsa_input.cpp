@@ -111,7 +111,8 @@ void AlsaInput::input_alsa()
     // Highest short in the second half of a frame, e.g. 2 (4 for 24-bit, 6 for 32-bit)
     const int roff = stride - 2;
 
-    const double norm = 1.0 / 32768.0;
+    // Absolute value of all samples will stay wihin [0, 1]
+    const double norm = 1.0 / (32768.0 * std::sqrt(2.0));
 
     std::vector<uint8_t> buffer(frames * stride);
     std::vector<Sample> data(frames);

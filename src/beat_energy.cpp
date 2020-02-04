@@ -74,7 +74,7 @@ void BeatEnergy::compute_energy()
         // std::cout << "E = " << last_e << ", Avg = " << avg_e << ", V = " << variance << ", C = "
         // << c << std::endl << std::flush;
         if (last_e > c * avg_e) {
-            std::cout << "Boom!" << std::endl << std::flush;
+            std::cout << "Boom! " << (1.5142857 - (last_e / avg_e)) / variance << std::endl << std::flush;
         }
     }
 }
