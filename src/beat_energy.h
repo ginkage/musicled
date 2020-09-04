@@ -1,28 +1,14 @@
 #pragma once
 
+#include "beat_detect.h"
 #include "circular_buffer.h"
-#include "global_state.h"
-#include "sample.h"
-#include "thread_sync.h"
 
-#include <memory>
-#include <thread>
-
-class BeatEnergy {
+class BeatEnergy : public BeatDetect {
 public:
     BeatEnergy(GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts);
 
-    void start_thread();
-    void join_thread();
+protected:
+    void detect() override;
 
-private:
-    void beat_detect();
-    void compute_energy();
-
-    GlobalState* global; // Global state for thread termination
-    CircularBuffer<Sample>* samples; // Audio samples
     CircularBuffer<double> energy;
-    std::vector<Sample> values;
-    std::thread thread; // Compute thread
-    std::shared_ptr<ThreadSync> sync;
 };
