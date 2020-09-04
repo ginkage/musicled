@@ -24,7 +24,7 @@ FluxLed::FluxLed(std::string host, GlobalState* state)
     resolved = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
 
     // Start the output thread immediately
-    thread = std::thread([=] { socket_send(); });
+    thread = std::thread([this] { socket_send(); });
 }
 
 FluxLed::~FluxLed() { thread.join(); }

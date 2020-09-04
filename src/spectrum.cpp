@@ -2,14 +2,22 @@
 
 Spectrum::Spectrum(GlobalState* state, int N)
     : global(state)
-    , audio(state)
+    , sync(new ThreadSync())
+    , audio(state, sync)
     , freq(N, audio.get_rate())
     , fft(N, audio.get_data())
+    , beat(state, audio.get_data(), sync)
 {
     audio.start_thread();
+    beat.start_thread();
 }
 
-Spectrum::~Spectrum() { audio.join_thread(); }
+Spectrum::~Spectrum()
+{
+    beat.join_thread();
+    sync->produce([] {}); // No-op to release the consumer thread
+    audio.join_thread();
+}
 
 FreqData& Spectrum::process()
 {

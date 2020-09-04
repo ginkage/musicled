@@ -1,13 +1,14 @@
 #include "alsa_input.h"
 
+#include <cinttypes>
 #include <iostream>
-#include <stdint.h>
 #include <stdlib.h>
 #include <vector>
 
-AlsaInput::AlsaInput(GlobalState* state)
+AlsaInput::AlsaInput(GlobalState* state, std::shared_ptr<ThreadSync> ts)
     : global(state)
     , samples(65536)
+    , sync(ts)
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
 
@@ -93,7 +94,7 @@ AlsaInput::~AlsaInput() { snd_pcm_close(handle); }
 
 void AlsaInput::start_thread()
 {
-    thread = std::thread([=] { input_alsa(); });
+    thread = std::thread([this] { input_alsa(); });
 }
 
 void AlsaInput::join_thread() { thread.join(); }
@@ -110,7 +111,8 @@ void AlsaInput::input_alsa()
     // Highest short in the second half of a frame, e.g. 2 (4 for 24-bit, 6 for 32-bit)
     const int roff = stride - 2;
 
-    const double norm = 1.0 / 32768.0;
+    // Absolute value of all samples will stay wihin [0, 1]
+    const double norm = 1.0 / (32768.0 * std::sqrt(2.0));
 
     std::vector<uint8_t> buffer(frames * stride);
     std::vector<Sample> data(frames);
@@ -135,7 +137,7 @@ void AlsaInput::input_alsa()
                 pright += stride;
             }
 
-            samples.write(data, n);
+            sync->produce([&] { samples.write(data.data(), n); });
         }
     }
 }
