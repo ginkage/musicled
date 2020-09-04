@@ -10,7 +10,8 @@
 
 class BeatDetect {
 public:
-    BeatDetect(GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts);
+    BeatDetect(
+        GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts, int size);
 
     void start_thread();
     void join_thread();

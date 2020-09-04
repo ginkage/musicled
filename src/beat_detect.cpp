@@ -4,10 +4,10 @@
 #include <numeric>
 
 BeatDetect::BeatDetect(
-    GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts)
+    GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts, int size)
     : global(state)
     , samples(buf)
-    , values(1024)
+    , values(size)
     , sync(ts)
 {
 }
