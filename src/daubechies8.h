@@ -32,73 +32,43 @@ private:
         }
     }
 
-    /*
-     * Performs several 1-D forward transforms from time domain to all possible
-     * Hilbert domains using one kind of wavelet transform algorithm for a given
-     * array of dimension (length) 2^p | pEN; N = 2, 4, 8, 16, 32, 64, 128, ..,
-     * and so on. However, the algorithm stores all levels in a matrix that has in
-     * first dimension the range of 0, .., p and in second dimension the
-     * coefficients (energy & details) of a certain level. From any level a full
-     * reconstruction can be performed. The first dimension is keeping the time
-     * series, due to being the Hilbert space of level 0. All following dimensions
-     * are keeping the next higher Hilbert spaces, so the next step in wavelet
-     * filtering.
-     */
     std::vector<std::vector<double>> decompose(std::vector<double>& arrTime)
     {
-        int levels = std::ilogb(arrTime.size());
-        std::vector<std::vector<double>> matDeComp(levels + 1);
-        for (int p = 0; p <= levels; p++)
-            matDeComp[p] = forward(arrTime, p);
-        return matDeComp;
-    }
+        int length = arrTime.size();
+        int levels = std::ilogb(length);
+        std::vector<std::vector<double>> matDecomp(levels + 1);
 
-    /*
-     * Performs a 1-D forward transform from time domain to Hilbert domain using
-     * one kind of a Fast Wavelet Transform (FWT) algorithm for a given array of
-     * dimension (length) 2^p | pEN; N = 2, 4, 8, 16, 32, 64, 128, .., and so on.
-     * However, the algorithms stops for a supported level that has be in the
-     * range 0, .., p of the dimension of the input array; 0 is the time series
-     * itself and p is the maximal number of possible levels.
-     */
-    std::vector<double> forward(std::vector<double>& arrTime, int level)
-    {
-        std::vector<double> arrHilb(arrTime);
-        int h = arrHilb.size();
-        for (int l = 0; h >= 2 && l < level; l++) {
-            std::vector<double> arrTempPart = wavelet_forward(arrHilb, h);
-            std::copy(arrTempPart.begin(), arrTempPart.begin() + h, arrHilb.begin());
-            h = h >> 1;
-        }
-        return arrHilb;
-    }
+        matDecomp[0] = arrTime;
 
-    /*
-     * Performs the forward transform for the given array from time domain to
-     * Hilbert domain and returns a new array of the same size keeping
-     * coefficients of Hilbert domain and should be of length 2 to the power of p
-     * -- length = 2^p where p is a positive integer.
-     */
-    std::vector<double> wavelet_forward(std::vector<double>& arrTime, int waveLength)
-    {
-        std::vector<double> arrHilb(waveLength, 0); // set to zero before sum up
-        int h = waveLength >> 1; // .. -> 8 -> 4 -> 2 .. shrinks in each step by half wavelength
+        // 1-D forward transforms from time domain to all possible Hilbert domains
+        int waveLength = length;
+        for (int level = 1; level <= levels; level++) {
+            // 1-D forward transform from time domain to Hilbert domain
+            std::vector<double>& arrHilb = matDecomp[level - 1];
+            std::vector<double>& arrTemp = matDecomp[level];
+            int half = waveLength >> 1;
 
-        for (int i = 0; i < h; i++) {
             // Sorting each step in patterns of: { scaling coefficients | wavelet coefficients }
-            for (int j = 0; j < 8; j++) {
-                int k = 2 * i + j;
-                // circulate over arrays if scaling and wavelet are larger
-                while (k >= waveLength)
-                    k -= waveLength;
-
-                // low pass filter for the energy (approximation)
-                arrHilb[i] += arrTime[k] * scalingDecom[j];
-                // high pass filter for the details
-                arrHilb[i + h] += arrTime[k] * waveletDecom[j];
+            for (int i = 0; i < half; i++) {
+                arrTemp[i] = arrTemp[i + half] = 0.0; // set to zero before sum up
+                for (int j = 0; j < 8; j++) {
+                    // k = (2*i + j) % waveLength
+                    int k = ((i << 1) + j) & (waveLength - 1);
+                    // low pass filter for the energy (approximation)
+                    arrTemp[i] += arrHilb[k] * scalingDecom[j];
+                    // high pass filter for the details
+                    arrTemp[i + half] += arrHilb[k] * waveletDecom[j];
+                }
             }
+
+            // The rest will be taken from the previous level
+            std::copy(arrHilb.begin() + waveLength, arrHilb.begin() + (length - waveLength),
+                arrTemp.begin() + waveLength);
+
+            // .. -> 8 -> 4 -> 2 .. shrinks in each step by half wavelength
+            waveLength = half;
         }
 
-        return arrHilb;
+        return matDecomp;
     }
 };

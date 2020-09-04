@@ -1,4 +1,4 @@
-#include "daub.h"
+#include "daubechies8.h"
 #include <vector>
 #include <algorithm>
 
@@ -39,21 +39,8 @@
  **/
 class WaveletBPMDetector {
 private:
-
-    int windowFrames;
-    int windowsToProcess;
-    Daubechies wavelet;
-
-    /*
-     * Array of BPM values computed for each window in the track.
-     * Overall BPM is computed as the median of this collection
-     **/
-    std::vector<double> instantBpm;
-
-    /**
-     * The tempo in beats-per-minute computed for the track
-     **/
-    double _bpm { -1.0 };
+    Daubechies8 wavelet;
+    double sampleRate;
 
   /**
    * Identifies the location of data with the maximum absolute 
@@ -63,23 +50,20 @@ private:
    * @return the index of the maximum value in the array
    **/
   int detectPeak(std::vector<double> &data) {
-    double max = __DBL_MIN__;
+    double max = DBL_MIN;
 
     for (double x : data)
       max = std::max(max, std::abs(x));
 
-    int location = -1;
-    for (int i = 0; i < data.size() && location == -1; ++i) {
-      if (data[i] == max) {
-        location = i;
-      }
-    }
-    for (int i = 0; i < data.size() && location == -1; ++i) {
-      if (data[i] == -max) {
-        location = i;
-      }
-    }
-    return location;
+    for (int i = 0; i < data.size(); ++i)
+      if (data[i] == max)
+        return i;
+
+    for (int i = 0; i < data.size(); ++i) {
+      if (data[i] == -max)
+        return i;
+
+    return -1;
   }
 
   /**
@@ -88,39 +72,36 @@ private:
    * @param An array of <code>windowFrames</code> samples representing the window
    **/
   void computeWindowBpm(std::vector<double> &data) {
-
-    var aC : Array[Double] = null
-    var dC : Array[Double] = null
-    var dCSum : Array[Double] = null
-    var dCMinLength : Int = 0
-    val levels = 4
-    val maxDecimation = pow(2, levels-1)
-    val minIndex : Int = (60.toDouble / 220 * audioFile.sampleRate.toDouble/maxDecimation).toInt
-    val maxIndex : Int = (60.toDouble / 40 * audioFile.sampleRate.toDouble/maxDecimation).toInt
+    std::vector<double> aC;
+    std::vector<double> dC;
+    std::vector<double> dCSum;
+    int dCMinLength = 0;
+    int levels = 4;
+    double maxDecimation = std::pow2(levels-1);
+    int minIndex = (int)(60.0 / 220.0 * sampleRate/maxDecimation);
+    int maxIndex = (int)(60.0 / 40.0 * sampleRate/maxDecimation);
 
     // 4 Level DWT
-    for (loop <- 0 until levels) {
-
+    for (int loop = 0; loop < levels; ++loop) {
       // Apply DWT
-      val transform = new Transform(new FastWaveletTransform(wavelet));
       if (loop == 0) {
-        val coefficients : Array[Array[Double]] = transform.decompose(data)
-        val l = coefficients.length - 1
-        aC = coefficients(1).slice(0, coefficients(1).length/2)
-        dC = coefficients(l).slice(coefficients(l).length/2, coefficients(l).length)
-        dCMinLength = (dC.length/maxDecimation).toInt + 1
+        std::vector<std::vector<double>> coefficients = wavelet.decompose(data);
+        int last = coefficients.size() - 1;
+        aC = coefficients(1).slice(0, coefficients(1).length/2);
+        dC = coefficients(last).slice(coefficients(last).length/2, coefficients(last).length);
+        dCMinLength = int(dC.size() /maxDecimation) + 1;
       } else {
-        val coefficients : Array[Array[Double]] = transform.decompose(aC)
-        val l = coefficients.length - 1
+        std::vector<std::vector<double>> coefficients = wavelet.decompose(aC);
+        int last = coefficients.size() - 1;
         aC = coefficients(1).slice(0, coefficients(1).length/2)
-        dC = coefficients(l).slice(coefficients(l).length/2, coefficients(l).length)
+        dC = coefficients(last).slice(coefficients(last).length/2, coefficients(last).length)
       }
 
       // Extract envelope from detail coefficients
       //  1) Undersample
       //  2) Absolute value
       //  3) Subtract mean
-      val pace = pow(2, (levels-loop-1)).toInt
+      int pace = std::pow2(levels-loop-1);
       dC = dC.undersample(pace).abs
       dC = dC - dC.mean
 
@@ -141,7 +122,6 @@ private:
     var correlated : Array[Double] = dCSum.correlate
     val correlatedTmp = correlated.slice(minIndex, maxIndex)
 
-
     // Detect peak in correlated data
     val location = detectPeak(correlatedTmp)
 
@@ -150,53 +130,4 @@ private:
     val windowBpm : Double = 60.toDouble / realLocation * (audioFile.sampleRate.toDouble/maxDecimation)
     instantBpm += windowBpm;
   }
-
-  override def bpm() : Double = {
-    if (_bpm == -1) {
-      for (currentWindow <- 0 until windowsToProcess) {
-        val buffer : Array[Int]  = new Array[Int](windowFrames * audioFile.numChannels);
-        val framesRead = audioFile.readFrames(buffer, windowFrames);
-        val leftChannelSamples : Array[Double] = 
-          buffer.zipWithIndex.filter(_._2 % 2 == 0).map(_._1.toDouble)
-        computeWindowBpm(leftChannelSamples)
-      }
-      _bpm = instantBpm.toArray.median
-    }
-    return _bpm
-  }
-
-}
-
-object WaveletBPMDetector {
-
-  /**
-   * Create a <code>WaveletBPMDetector</code> object given an audio file, 
-   * a size of the window in frames and a wavelet type
-   * @param audioFile Audio file 
-   * @param windowFrames Number of frames that form a window on which the beat detection 
-   * algorithm is applied. Due to the way DWT is applied <code>windowFrames</code>
-   * must be a power of two. <code>windowFrames</code> should be such that a window 
-   * corresponds to 1 to 10 seconds of the audio file.
-   * @param waveletType The type of wavelet. Default value is <code>Daubechies4</code>
-   * @param windowsToConsider The number of windows to process. If not specified 
-   * the whole track is processed
-   * @return A object of the class <code>WaveletBPMDetector</code> 
-   * @throws WindowSizeException
-   **/
-  def apply(
-    audioFile : AudioFile, 
-    windowFrames : Int, 
-    waveletType : Wavelet = Daubechies4, 
-    windowsToConsider : Int = 0) : WaveletBPMDetector = {
-
-    if ((windowFrames < 0) || !((windowFrames & (windowFrames - 1)) == 0))
-      throw new WindowSizeException("windowFrames parameter must be a power of 2")
-
-    var windowsNumber = windowsToConsider
-    if (windowsNumber <= 0) {
-      windowsNumber = (audioFile.numFrames / windowFrames).toInt
-    }
-
-    return new WaveletBPMDetector(audioFile, windowFrames, waveletType, windowsNumber)
-  }
-}
+};
