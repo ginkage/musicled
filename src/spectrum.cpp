@@ -6,7 +6,7 @@ Spectrum::Spectrum(GlobalState* state, int N)
     , audio(state, sync)
     , freq(N, audio.get_rate())
     , fft(N, audio.get_data())
-    , beat(state, audio.get_data(), sync)
+    , beat(state, audio.get_data(), sync, audio.get_rate())
 {
     audio.start_thread();
     beat.start_thread();

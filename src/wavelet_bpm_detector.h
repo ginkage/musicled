@@ -1,5 +1,9 @@
 #include "daubechies8.h"
+
 #include <algorithm>
+#include <cfloat>
+#include <cmath>
+#include <numeric>
 #include <vector>
 
 /**
@@ -32,9 +36,7 @@
  **/
 class WaveletBPMDetector {
 public:
-    WaveletBPMDetector(double rate) {
-        sampleRate = rate;
-    }
+    WaveletBPMDetector(double rate) { sampleRate = rate; }
 
     /**
      * Given <code>windowFrames</code> samples computes a BPM
@@ -44,15 +46,16 @@ public:
     double computeWindowBpm(std::vector<double>& data)
     {
         int levels = 4;
-        int pace = std::pow2(levels - 1);
+        int pace = std::exp2(levels - 1);
         double maxDecimation = pace;
         int minIndex = (int)(60.0 / 220.0 * sampleRate / maxDecimation);
         int maxIndex = (int)(60.0 / 40.0 * sampleRate / maxDecimation);
-        std::vector<double> dCSum(dCMinLength);
 
         Daubechies8 wavelet;
         std::vector<decomposition> decomp = wavelet.decompose(data, levels);
         int dCMinLength = int(decomp[0].second.size() / maxDecimation) + 1;
+        std::vector<double> dCSum(dCMinLength);
+        std::vector<double> dC;
 
         // 4 Level DWT
         for (int loop = 0; loop < levels; ++loop) {
@@ -60,7 +63,9 @@ public:
             //  1) Undersample
             //  2) Absolute value
             //  3) Subtract mean
-            dC = normalize(abs(undersample(decomp[loop].second, pace)));
+            dC = undersample(decomp[loop].second, pace);
+            dC = abs(dC);
+            dC = normalize(dC);
 
             // Recombine detail coeffients
             if (loop == 0) {
@@ -73,11 +78,12 @@ public:
         }
 
         // Add the last approximated data
-        std::vector<double> aC = normalize(abs(decomp[levels - 1].first));
+        std::vector<double> aC = abs(decomp[levels - 1].first);
+        aC = normalize(aC);
         add(dCSum, aC);
 
         // Autocorrelation
-        std::vector<double> correlated correlate(dCSum);
+        std::vector<double> correlated = correlate(dCSum);
         std::vector<double> correlatedTmp(
             correlated.begin() + minIndex, correlated.begin() + maxIndex);
 
@@ -103,16 +109,21 @@ private:
     {
         double max = DBL_MIN;
 
-        for (double x : data)
+        for (double x : data) {
             max = std::max(max, std::abs(x));
+        }
 
-        for (int i = 0; i < data.size(); ++i)
-            if (data[i] == max)
+        for (unsigned int i = 0; i < data.size(); ++i) {
+            if (data[i] == max) {
                 return i;
+            }
+        }
 
-        for (int i = 0; i < data.size(); ++i)
-            if (data[i] == -max)
+        for (unsigned int i = 0; i < data.size(); ++i) {
+            if (data[i] == -max) {
                 return i;
+            }
+        }
 
         return -1;
     }
@@ -120,31 +131,35 @@ private:
     std::vector<double> undersample(std::vector<double>& data, int pace)
     {
         int length = data.size();
-        std::vector result(length / pace);
-        for (int i = 0, j = 0; i < length; ++i, j += pace)
+        std::vector<double> result(length / pace);
+        for (int i = 0, j = 0; i < length; ++i, j += pace) {
             result[i] = data[i];
+        }
         return result;
     }
 
     std::vector<double> abs(std::vector<double>& data)
     {
-        for (double& value : data)
+        for (double& value : data) {
             value = std::abs(value);
+        }
         return data;
     }
 
     std::vector<double> normalize(std::vector<double>& data)
     {
         double mean = std::accumulate(data.begin(), data.end(), 0) / (double)data.size();
-        for (double& value : data)
+        for (double& value : data) {
             value -= mean;
+        }
         return data;
     }
 
     void add(std::vector<double>& data, std::vector<double>& plus)
     {
-        for (int i = 0; i < data.size(); ++i)
+        for (unsigned int i = 0; i < data.size(); ++i) {
             data[i] += plus[i];
+        }
     }
 
     std::vector<double> correlate(std::vector<double>& data)
@@ -153,8 +168,9 @@ private:
         std::vector<double> correlation(n, 0);
         for (int k = 0; k < n; ++k) {
             for (int i = 0; i < n; ++i) {
-                if (k + i < n)
-                    correlation[k] = correlation[k] + data[i] * data[k + i];
+                if (k + i < n) {
+                    correlation[k] += data[i] * data[k + i];
+                }
             }
         }
         return correlation;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "alsa_input.h"
-#include "beat_energy.h"
+#include "beat_dwt.h"
 #include "fft_data.h"
 #include "freq_data.h"
 #include "global_state.h"
@@ -27,5 +27,5 @@ private:
     AlsaInput audio; // Audio input thread
     FreqData freq; // Precomputed per-frequency data
     FftData fft; // FFTW3 computations for the left and right channels
-    BeatEnergy beat; // Beat detector thread
+    BeatDwt beat; // Beat detector thread
 };
