@@ -119,7 +119,7 @@ private:
         return 60.0 / realLocation * (sampleRate / maxDecimation);
     }
 
-    std::vector<double> undersample_abs(std::vector<double>& data, int pace)
+    std::vector<double> undersample(std::vector<double>& data, int pace)
     {
         int length = data.size();
         std::vector result(length / pace);
