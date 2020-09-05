@@ -123,9 +123,8 @@ private:
     {
         int length = data.size();
         std::vector result(length / pace);
-        for (int i = 0, j = 0; i < length; ++i, j += pace) {
-            result[i] = std::abs(data[i]);
-        }
+        for (int i = 0, j = 0; i < length; ++i, j += pace)
+            result[i] = data[i];
         return result;
     }
 
