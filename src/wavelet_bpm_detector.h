@@ -29,41 +29,11 @@
  * tempo of the window is computed and appended to a colletion.
  * Once all windows in the track are processed the beat-per-minute
  * value is returned as the median of the windows values.
- *
- * Audio track data is buffered so that there's no need
- * to load the whole track in memory before applying
- * the detection.
- *
- * Class constructor is private, use the companion
- * object instead.
  **/
 class WaveletBPMDetector {
-private:
-    double sampleRate;
-
-    /**
-     * Identifies the location of data with the maximum absolute
-     * value (either positive or negative). If multiple data
-     * have the same absolute value the last positive is taken
-     * @param data the input array from which to identify the maximum
-     * @return the index of the maximum value in the array
-     **/
-    int detectPeak(std::vector<double>& data)
-    {
-        double max = DBL_MIN;
-
-        for (double x : data)
-            max = std::max(max, std::abs(x));
-
-        for (int i = 0; i < data.size(); ++i)
-            if (data[i] == max)
-                return i;
-
-        for (int i = 0; i < data.size(); ++i)
-            if (data[i] == -max)
-                return i;
-
-        return -1;
+public:
+    WaveletBPMDetector(double rate) {
+        sampleRate = rate;
     }
 
     /**
@@ -117,6 +87,34 @@ private:
         // Compute window BPM given the peak
         int realLocation = minIndex + location;
         return 60.0 / realLocation * (sampleRate / maxDecimation);
+    }
+
+private:
+    double sampleRate;
+
+    /**
+     * Identifies the location of data with the maximum absolute
+     * value (either positive or negative). If multiple data
+     * have the same absolute value the last positive is taken
+     * @param data the input array from which to identify the maximum
+     * @return the index of the maximum value in the array
+     **/
+    int detectPeak(std::vector<double>& data)
+    {
+        double max = DBL_MIN;
+
+        for (double x : data)
+            max = std::max(max, std::abs(x));
+
+        for (int i = 0; i < data.size(); ++i)
+            if (data[i] == max)
+                return i;
+
+        for (int i = 0; i < data.size(); ++i)
+            if (data[i] == -max)
+                return i;
+
+        return -1;
     }
 
     std::vector<double> undersample(std::vector<double>& data, int pace)
