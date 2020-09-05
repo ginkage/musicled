@@ -39,7 +39,6 @@
  **/
 class WaveletBPMDetector {
 private:
-    Daubechies8 wavelet;
     double sampleRate;
 
   /**
@@ -72,36 +71,25 @@ private:
    * @param An array of <code>windowFrames</code> samples representing the window
    **/
   void computeWindowBpm(std::vector<double> &data) {
-    std::vector<double> aC;
-    std::vector<double> dC;
-    std::vector<double> dCSum;
-    int dCMinLength = 0;
     int levels = 4;
-    double maxDecimation = std::pow2(levels-1);
-    int minIndex = (int)(60.0 / 220.0 * sampleRate/maxDecimation);
-    int maxIndex = (int)(60.0 / 40.0 * sampleRate/maxDecimation);
+    double maxDecimation = std::pow2(levels - 1);
+    int minIndex = (int)(60.0 / 220.0 * sampleRate / maxDecimation);
+    int maxIndex = (int)(60.0 / 40.0 * sampleRate / maxDecimation);
+    int dCMinLength = int(decomp[0].second.size() / maxDecimation) + 1;
+    std::vector<double> dCSum(dCMinLength);
+
+    Daubechies8 wavelet;
+    std::vector<decomposition> decomp = wavelet.decompose(data, levels);
 
     // 4 Level DWT
     for (int loop = 0; loop < levels; ++loop) {
-      // Apply DWT
-      if (loop == 0) {
-        std::vector<std::vector<double>> coefficients = wavelet.decompose(data);
-        int last = coefficients.size() - 1;
-        aC = coefficients(1).slice(0, coefficients(1).length/2);
-        dC = coefficients(last).slice(coefficients(last).length/2, coefficients(last).length);
-        dCMinLength = int(dC.size() /maxDecimation) + 1;
-      } else {
-        std::vector<std::vector<double>> coefficients = wavelet.decompose(aC);
-        int last = coefficients.size() - 1;
-        aC = coefficients(1).slice(0, coefficients(1).length/2)
-        dC = coefficients(last).slice(coefficients(last).length/2, coefficients(last).length)
-      }
+      std::vector<double> &dC = decomp[loop].second;
 
       // Extract envelope from detail coefficients
       //  1) Undersample
       //  2) Absolute value
       //  3) Subtract mean
-      int pace = std::pow2(levels-loop-1);
+      int pace = std::pow2(levels - loop - 1);
       dC = dC.undersample(pace).abs
       dC = dC - dC.mean
 
@@ -109,11 +97,12 @@ private:
       if (dCSum == null) {
         dCSum = dC.slice(0, dCMinLength)
       } else {
-        dCSum = dC.slice(0, min(dCMinLength, dC.length)) |+| dCSum
+        dCSum = dC.slice(0, std::min(dCMinLength, dC.length)) |+| dCSum
       }
     }
   
     // Add the last approximated data
+    std::vector<double> &aC = decomp[levels - 1].first;
     aC = aC.abs
     aC = aC - aC.mean
     dCSum = aC.slice(0, min(dCMinLength, dC.length)) |+| dCSum
