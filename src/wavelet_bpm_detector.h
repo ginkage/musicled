@@ -132,8 +132,8 @@ private:
     {
         int length = data.size();
         std::vector<double> result(length / pace);
-        for (int i = 0, j = 0; i < length; ++i, j += pace) {
-            result[i] = data[i];
+        for (int i = 0, j = 0; j < length; ++i, j += pace) {
+            result[i] = data[j];
         }
         return result;
     }
