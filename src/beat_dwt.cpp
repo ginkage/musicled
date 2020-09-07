@@ -4,9 +4,9 @@
 #include <numeric>
 
 BeatDwt::BeatDwt(GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts,
-    double sampleRate)
-    : BeatDetect(state, buf, ts, 131072)
-    , detector(sampleRate, 131072)
+    double sampleRate, int windowSize)
+    : BeatDetect(state, buf, ts, windowSize)
+    , detector(sampleRate, windowSize)
 {
 }
 

@@ -6,7 +6,7 @@
 class BeatDwt : public BeatDetect {
 public:
     BeatDwt(GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts,
-        double sampleRate);
+        double sampleRate, int windowSize);
 
 protected:
     void detect() override;
