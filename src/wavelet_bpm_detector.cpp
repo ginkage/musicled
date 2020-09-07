@@ -1,13 +1,10 @@
+#include "wavelet_bpm_detector.h"
+#include "daubechies8.h"
+
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
-#include <fstream>
-#include <iostream>
 #include <numeric>
-#include <vector>
-
-#include "daubechies8.h"
-#include "wavelet_bpm_detector.h"
 
 /**
  * Identifies the location of data with the maximum absolute
@@ -38,14 +35,6 @@ static int detectPeak(std::vector<double>& data, int minIndex, int maxIndex)
     }
 
     return -1;
-}
-
-static void dump(std::vector<double>& data, std::string filename)
-{
-    std::ofstream out(filename);
-    for (double& v : data) {
-        out << v << std::endl;
-    }
 }
 
 static std::vector<double> undersample(std::vector<double>& data, int pace)
@@ -110,8 +99,6 @@ double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
     std::vector<double> dCSum(dCMinLength, 0);
     std::vector<double> dC;
 
-    dump(data, "data");
-
     // 4 Level DWT
     for (int loop = 0; loop < levels; ++loop) {
         // Extract envelope from detail coefficients
@@ -128,27 +115,13 @@ double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
         pace >>= 1;
     }
 
-    dump(dCSum, "dCSum1");
-
-    // Autocorrelation
-    std::vector<double> correlated1 = correlate(dCSum);
-
-    dump(correlated1, "correlated1");
-    int location1 = detectPeak(correlated1, minIndex, maxIndex);
-    double bpm = 60.0 / location1 * (sampleRate / maxDecimation);
-    std::cout << "Pre-approximated: " << bpm << std::endl;
-
     // Add the last approximated data
     std::vector<double> aC = abs(decomp[levels - 1].first);
     aC = normalize(aC);
     add(dCSum, aC);
 
-    dump(dCSum, "dCSum2");
-
     // Autocorrelation
     std::vector<double> correlated = correlate(dCSum);
-
-    dump(correlated, "correlated");
 
     // Detect peak in correlated data
     int location = detectPeak(correlated, minIndex, maxIndex);
