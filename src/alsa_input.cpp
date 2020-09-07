@@ -7,7 +7,7 @@
 
 AlsaInput::AlsaInput(GlobalState* state, std::shared_ptr<ThreadSync> ts)
     : global(state)
-    , samples(65536)
+    , samples(524288)
     , sync(ts)
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
