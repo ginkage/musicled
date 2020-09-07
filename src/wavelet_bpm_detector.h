@@ -14,14 +14,11 @@
  * Tzanetakis, Essl and Cookin the paper titled
  * "Audio Analysis using the Discrete Wavelet Transform"
  *
- * Objects of the class can be created using the companion
- * object's factory method.
- *
  * To detect the tempo the discrete wavelet transform is used.
  * Track samples are divided into windows of frames.
  * For each window data are divided into 4 frequency sub-bands
  * through DWT. For each frequency sub-band an envelope is
- * estracted from the detail coffecients by:
+ * extracted from the detail coffecients by:
  * 1) Full wave rectification (take the absolute value),
  * 2) Downsampling of the coefficients,
  * 3) Normalization (via mean removal)
@@ -54,11 +51,11 @@ public:
 
         Daubechies8 wavelet;
         std::vector<decomposition> decomp = wavelet.decompose(data, levels);
-        int dCMinLength = int(decomp[0].second.size() / maxDecimation) + 1;
+        int dCMinLength = int(decomp[0].second.size() / maxDecimation);
         std::vector<double> dCSum(dCMinLength, 0);
         std::vector<double> dC;
 
-        //dump(data, "data");
+        dump(data, "data");
 
         // 4 Level DWT
         for (int loop = 0; loop < levels; ++loop) {
@@ -76,31 +73,25 @@ public:
             pace >>= 1;
         }
 
-        //dump(dCSum, "dCSum1");
+        dump(dCSum, "dCSum1");
 
         // Add the last approximated data
         std::vector<double> aC = abs(decomp[levels - 1].first);
         aC = normalize(aC);
         add(dCSum, aC);
 
-        //dump(dCSum, "dCSum2");
+        dump(dCSum, "dCSum2");
 
         // Autocorrelation
         std::vector<double> correlated = correlate(dCSum);
 
-        //dump(correlated, "correlated");
-
-        std::vector<double> correlatedTmp(
-            correlated.begin() + minIndex, correlated.begin() + maxIndex);
-
-        //dump(correlatedTmp, "correlatedTmp");
+        dump(correlated, "correlated");
 
         // Detect peak in correlated data
-        int location = detectPeak(correlatedTmp);
+        int location = detectPeak(correlated, minIndex, maxIndex);
 
         // Compute window BPM given the peak
-        int realLocation = minIndex + location;
-        return 60.0 / realLocation * (sampleRate / maxDecimation);
+        return 60.0 / location * (sampleRate / maxDecimation);
     }
 
 private:
@@ -113,21 +104,22 @@ private:
      * @param data the input array from which to identify the maximum
      * @return the index of the maximum value in the array
      **/
-    int detectPeak(std::vector<double>& data)
+    int detectPeak(std::vector<double>& data, int minIndex, int maxIndex)
     {
         double max = DBL_MIN;
+        maxIndex = std::min(maxIndex, (int)data.size());
 
-        for (double x : data) {
-            max = std::max(max, std::fabs(x));
+        for (int i = minIndex; i < maxIndex; ++i) {
+            max = std::max(max, std::abs(data[i]));
         }
 
-        for (unsigned int i = 0; i < data.size(); ++i) {
+        for (int i = minIndex; i < maxIndex; ++i) {
             if (data[i] == max) {
                 return i;
             }
         }
 
-        for (unsigned int i = 0; i < data.size(); ++i) {
+        for (int i = minIndex; i < maxIndex; ++i) {
             if (data[i] == -max) {
                 return i;
             }
@@ -140,7 +132,7 @@ private:
     {
         std::ofstream out(filename);
         for (double& v : data) {
-            out << " " << v;
+            out << v << std::endl;
         }
     }
 
@@ -157,7 +149,7 @@ private:
     std::vector<double> abs(std::vector<double>& data)
     {
         for (double& value : data) {
-            value = std::fabs(value);
+            value = std::abs(value);
         }
         return data;
     }
