@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <fstream>
 #include <numeric>
 #include <vector>
 
@@ -54,8 +55,10 @@ public:
         Daubechies8 wavelet;
         std::vector<decomposition> decomp = wavelet.decompose(data, levels);
         int dCMinLength = int(decomp[0].second.size() / maxDecimation) + 1;
-        std::vector<double> dCSum(dCMinLength);
+        std::vector<double> dCSum(dCMinLength, 0);
         std::vector<double> dC;
+
+        //dump(data, "data");
 
         // 4 Level DWT
         for (int loop = 0; loop < levels; ++loop) {
@@ -68,24 +71,29 @@ public:
             dC = normalize(dC);
 
             // Recombine detail coeffients
-            if (loop == 0) {
-                dCSum = dC;
-            } else {
-                add(dCSum, dC);
-            }
+            add(dCSum, dC);
 
             pace >>= 1;
         }
+
+        //dump(dCSum, "dCSum1");
 
         // Add the last approximated data
         std::vector<double> aC = abs(decomp[levels - 1].first);
         aC = normalize(aC);
         add(dCSum, aC);
 
+        //dump(dCSum, "dCSum2");
+
         // Autocorrelation
         std::vector<double> correlated = correlate(dCSum);
+
+        //dump(correlated, "correlated");
+
         std::vector<double> correlatedTmp(
             correlated.begin() + minIndex, correlated.begin() + maxIndex);
+
+        //dump(correlatedTmp, "correlatedTmp");
 
         // Detect peak in correlated data
         int location = detectPeak(correlatedTmp);
@@ -110,7 +118,7 @@ private:
         double max = DBL_MIN;
 
         for (double x : data) {
-            max = std::max(max, std::abs(x));
+            max = std::max(max, std::fabs(x));
         }
 
         for (unsigned int i = 0; i < data.size(); ++i) {
@@ -128,6 +136,14 @@ private:
         return -1;
     }
 
+    void dump(std::vector<double>& data, std::string filename)
+    {
+        std::ofstream out(filename);
+        for (double& v : data) {
+            out << " " << v;
+        }
+    }
+
     std::vector<double> undersample(std::vector<double>& data, int pace)
     {
         int length = data.size();
@@ -141,7 +157,7 @@ private:
     std::vector<double> abs(std::vector<double>& data)
     {
         for (double& value : data) {
-            value = std::abs(value);
+            value = std::fabs(value);
         }
         return data;
     }

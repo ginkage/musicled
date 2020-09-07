@@ -12,10 +12,11 @@ BeatDwt::BeatDwt(GlobalState* state, CircularBuffer<Sample>* buf, std::shared_pt
 
 void BeatDwt::detect()
 {
-    // Latest values, single channel
+    // Latest values, single channel, denormalized
+	const double norm = 32768.0 * std::sqrt(2.0);
     std::vector<double> data(values.size());
     for (unsigned int i = 0; i < values.size(); ++i) {
-        data[i] = values[i].real();
+        data[i] = values[i].real() * norm;
     }
 
     double bpm = detector.computeWindowBpm(data);
