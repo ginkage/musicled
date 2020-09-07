@@ -9,6 +9,8 @@ SRCS := $(wildcard $(SRCDIR)/*.cpp)
 OBJS := $(SRCS:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 DEPS := $(SRCS:$(SRCDIR)/%.cpp=$(DEPDIR)/%.d)
 
+LIB_OBJS := $(filter-out $(OBJDIR)/$(BIN).o, $(OBJS))
+
 TEST_SRCS := $(wildcard $(TESTDIR)/*.cpp)
 TEST_OBJS := $(TEST_SRCS:$(TESTDIR)/%.cpp=$(OBJDIR)/%.o)
 TEST_BIN := $(TEST_SRCS:$(TESTDIR)/%.cpp=%)
@@ -32,7 +34,7 @@ $(BIN): $(OBJS)
 $(OBJS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
 	$(CXX) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-$(TEST_BIN): $(TEST_OBJS)
+$(TEST_BIN): $(TEST_OBJS) $(LIB_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(TEST_OBJS): $(OBJDIR)/%.o : $(TESTDIR)/%.cpp

@@ -76,10 +76,8 @@ static std::vector<double> correlate(std::vector<double>& data)
     int n = data.size();
     std::vector<double> correlation(n, 0);
     for (int k = 0; k < n; ++k) {
-        for (int i = 0; i < n; ++i) {
-            if (k + i < n) {
-                correlation[k] += data[i] * data[k + i];
-            }
+        for (int i = 0; k + i < n; ++i) {
+            correlation[k] += data[i] * data[k + i];
         }
     }
     return correlation;
