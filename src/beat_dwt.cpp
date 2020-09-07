@@ -6,7 +6,7 @@
 BeatDwt::BeatDwt(GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts,
     double sampleRate)
     : BeatDetect(state, buf, ts, 131072)
-    , detector(sampleRate)
+    , detector(sampleRate, 131072)
 {
 }
 

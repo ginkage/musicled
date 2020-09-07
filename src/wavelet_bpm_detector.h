@@ -1,3 +1,6 @@
+#include "daubechies8.h"
+
+#include <fftw3.h>
 #include <vector>
 
 /**
@@ -27,7 +30,8 @@
  **/
 class WaveletBPMDetector {
 public:
-    WaveletBPMDetector(double rate) { sampleRate = rate; }
+    WaveletBPMDetector(double rate, int size);
+    ~WaveletBPMDetector();
 
     /**
      * Given <code>windowFrames</code> samples computes a BPM
@@ -35,7 +39,20 @@ public:
      * @param An array of <code>windowFrames</code> samples representing the window
      **/
     double computeWindowBpm(std::vector<double>& data);
+    std::vector<double> correlate_fft(std::vector<double>& data);
+    std::vector<double> correlate_brute(std::vector<double>& data);
 
 private:
+    int levels;
+    int windowSize;
+    int corrSize;
+    std::vector<double> corr;
     double sampleRate;
+    Daubechies8 wavelet;
+
+    // Autocorrelation
+    double* in;
+    fftw_complex* out;
+    fftw_plan plan_forward;
+    fftw_plan plan_back;
 };

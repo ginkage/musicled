@@ -1,10 +1,31 @@
 #include "wavelet_bpm_detector.h"
-#include "daubechies8.h"
 
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <complex>
+#include <cstring>
+#include <iostream>
 #include <numeric>
+
+WaveletBPMDetector::WaveletBPMDetector(double rate, int size)
+    : levels(4)
+    , corrSize(size / (1 << (levels - 1)))
+    , corr(corrSize)
+    , sampleRate(rate)
+{
+    in = corr.data();
+    out = fftw_alloc_complex(corrSize / 2 + 1);
+    plan_forward = fftw_plan_dft_r2c_1d(corrSize, in, out, FFTW_MEASURE);
+    plan_back = fftw_plan_dft_c2r_1d(corrSize, out, in, FFTW_MEASURE);
+}
+
+WaveletBPMDetector::~WaveletBPMDetector()
+{
+    fftw_destroy_plan(plan_forward);
+    fftw_destroy_plan(plan_back);
+    fftw_free(out);
+}
 
 /**
  * Identifies the location of data with the maximum absolute
@@ -71,7 +92,29 @@ static void add(std::vector<double>& data, std::vector<double>& plus)
     }
 }
 
-static std::vector<double> correlate(std::vector<double>& data)
+std::vector<double> WaveletBPMDetector::correlate_fft(std::vector<double>& data)
+{
+    int n = corrSize / 2;
+    memset(in, 0, corrSize * sizeof(double));
+    memcpy(in, data.data(), n * sizeof(double));
+
+    fftw_execute(plan_forward);
+
+    std::complex<double>* cplx = (std::complex<double>*)out;
+    for (int i = 0; i <= n; i++) {
+        cplx[i] *= std::conj(cplx[i]);
+    }
+
+    fftw_execute(plan_back);
+
+    for (int i = 0; i < n; i++) {
+        corr[i] /= corrSize;
+    }
+
+    return std::vector<double>(in, in + n);
+}
+
+std::vector<double> WaveletBPMDetector::correlate_brute(std::vector<double>& data)
 {
     int n = data.size();
     std::vector<double> correlation(n, 0);
@@ -85,13 +128,11 @@ static std::vector<double> correlate(std::vector<double>& data)
 
 double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
 {
-    int levels = 4;
-    int pace = std::exp2(levels - 1);
+    int pace = 1 << (levels - 1);
     double maxDecimation = pace;
     int minIndex = (int)(60.0 / 220.0 * sampleRate / maxDecimation);
     int maxIndex = (int)(60.0 / 40.0 * sampleRate / maxDecimation);
 
-    Daubechies8 wavelet;
     std::vector<decomposition> decomp = wavelet.decompose(data, levels);
     int dCMinLength = int(decomp[0].second.size() / maxDecimation);
     std::vector<double> dCSum(dCMinLength, 0);
@@ -119,7 +160,7 @@ double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
     add(dCSum, aC);
 
     // Autocorrelation
-    std::vector<double> correlated = correlate(dCSum);
+    std::vector<double> correlated = correlate_fft(dCSum);
 
     // Detect peak in correlated data
     int location = detectPeak(correlated, minIndex, maxIndex);

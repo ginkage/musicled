@@ -34,11 +34,11 @@ $(BIN): $(OBJS)
 $(OBJS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
 	$(CXX) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-$(TEST_BIN): $(TEST_OBJS) $(LIB_OBJS)
-	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
-
 $(TEST_OBJS): $(OBJDIR)/%.o : $(TESTDIR)/%.cpp
 	$(CXX) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+$(TEST_BIN): % : $(OBJDIR)/%.o $(LIB_OBJS)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 -include $(DEPS) $(TEST_DEPS)
 
@@ -48,4 +48,4 @@ test: $(TEST_BIN)
 
 .PHONY: clean
 clean:
-	rm -rf $(OBJDIR) $(DEPDIR) $(BIN)
+	rm -rf $(OBJDIR) $(DEPDIR) $(BIN) $(TEST_BIN)
