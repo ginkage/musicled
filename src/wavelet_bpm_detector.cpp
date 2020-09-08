@@ -19,11 +19,11 @@ WaveletBPMDetector::WaveletBPMDetector(double rate, int size)
     , dCMinLength(corrSize / 2)
     , dC(dCMinLength)
     , dCSum(dCMinLength)
+    , in(corr.data())
+    , out(fftw_alloc_complex(corrSize / 2 + 1))
+    , plan_forward(fftw_plan_dft_r2c_1d(corrSize, in, out, FFTW_MEASURE))
+    , plan_back(fftw_plan_dft_c2r_1d(corrSize, out, in, FFTW_MEASURE))
 {
-    in = corr.data();
-    out = fftw_alloc_complex(corrSize / 2 + 1);
-    plan_forward = fftw_plan_dft_r2c_1d(corrSize, in, out, FFTW_MEASURE);
-    plan_back = fftw_plan_dft_c2r_1d(corrSize, out, in, FFTW_MEASURE);
 }
 
 WaveletBPMDetector::~WaveletBPMDetector()
@@ -46,7 +46,7 @@ static int detectPeak(std::vector<double>& data, int minIndex, int maxIndex)
     maxIndex = std::min(maxIndex, (int)data.size());
 
     for (int i = minIndex; i < maxIndex; ++i) {
-        max = std::max(max, std::abs(data[i]));
+        max = std::max(max, std::fabs(data[i]));
     }
 
     for (int i = minIndex; i < maxIndex; ++i) {
@@ -75,7 +75,7 @@ static void undersample(std::vector<double>& data, int pace, std::vector<double>
 void WaveletBPMDetector::recombine(std::vector<double>& data)
 {
     for (double& value : data) {
-        value = std::abs(value);
+        value = std::fabs(value);
     }
 
     double mean = std::accumulate(data.begin(), data.end(), 0) / (double)data.size();

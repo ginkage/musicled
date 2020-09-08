@@ -2,7 +2,7 @@
 
 class Daubechies8 : public Wavelet {
 public:
-    Daubechies8() {}
+    Daubechies8() { }
 
 protected:
     void forward(std::vector<double>& data, decomposition& out) override;
