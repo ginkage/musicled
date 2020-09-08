@@ -39,16 +39,25 @@ public:
      * @param An array of <code>windowFrames</code> samples representing the window
      **/
     double computeWindowBpm(std::vector<double>& data);
-    std::vector<double> correlate_fft(std::vector<double>& data);
-    std::vector<double> correlate_brute(std::vector<double>& data);
+
+    // For testing
+    std::vector<double> correlate(std::vector<double>& data);
 
 private:
-    int levels;
+    void recombine(std::vector<double>& data);
+
+    double sampleRate;
     int windowSize;
+
+    int levels;
+    int maxPace;
     int corrSize;
     std::vector<double> corr;
-    double sampleRate;
     Daubechies8 wavelet;
+    std::vector<decomposition> decomp;
+    int dCMinLength;
+    std::vector<double> dC;
+    std::vector<double> dCSum;
 
     // Autocorrelation
     double* in;

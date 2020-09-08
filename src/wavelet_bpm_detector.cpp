@@ -9,10 +9,16 @@
 #include <numeric>
 
 WaveletBPMDetector::WaveletBPMDetector(double rate, int size)
-    : levels(4)
-    , corrSize(size / (1 << (levels - 1)))
+    : sampleRate(rate)
+    , windowSize(size)
+    , levels(4)
+    , maxPace(1 << (levels - 1))
+    , corrSize(size / maxPace)
     , corr(corrSize)
-    , sampleRate(rate)
+    , decomp(Wavelet::alloc(size, levels))
+    , dCMinLength(corrSize / 2)
+    , dC(dCMinLength)
+    , dCSum(dCMinLength)
 {
     in = corr.data();
     out = fftw_alloc_complex(corrSize / 2 + 1);
@@ -58,45 +64,32 @@ static int detectPeak(std::vector<double>& data, int minIndex, int maxIndex)
     return -1;
 }
 
-static std::vector<double> undersample(std::vector<double>& data, int pace)
+static void undersample(std::vector<double>& data, int pace, std::vector<double>& out)
 {
     int length = data.size();
-    std::vector<double> result(length / pace);
     for (int i = 0, j = 0; j < length; ++i, j += pace) {
-        result[i] = data[j];
+        out[i] = data[j];
     }
-    return result;
 }
 
-static std::vector<double> abs(std::vector<double>& data)
+void WaveletBPMDetector::recombine(std::vector<double>& data)
 {
     for (double& value : data) {
         value = std::abs(value);
     }
-    return data;
-}
 
-static std::vector<double> normalize(std::vector<double>& data)
-{
     double mean = std::accumulate(data.begin(), data.end(), 0) / (double)data.size();
-    for (double& value : data) {
-        value -= mean;
-    }
-    return data;
-}
 
-static void add(std::vector<double>& data, std::vector<double>& plus)
-{
-    for (unsigned int i = 0; i < data.size(); ++i) {
-        data[i] += plus[i];
+    for (int i = 0; i < dCMinLength; ++i) {
+        dCSum[i] += data[i] - mean;
     }
 }
 
-std::vector<double> WaveletBPMDetector::correlate_fft(std::vector<double>& data)
+std::vector<double> WaveletBPMDetector::correlate(std::vector<double>& data)
 {
-    int n = corrSize / 2;
-    memset(in, 0, corrSize * sizeof(double));
+    int n = data.size();
     memcpy(in, data.data(), n * sizeof(double));
+    memset(in + n, 0, n * sizeof(double));
 
     fftw_execute(plan_forward);
 
@@ -107,36 +100,19 @@ std::vector<double> WaveletBPMDetector::correlate_fft(std::vector<double>& data)
 
     fftw_execute(plan_back);
 
+    double scale = 1.0 / corrSize;
     for (int i = 0; i < n; i++) {
-        corr[i] /= corrSize;
+        data[i] = corr[i] * scale;
     }
 
-    return std::vector<double>(in, in + n);
-}
-
-std::vector<double> WaveletBPMDetector::correlate_brute(std::vector<double>& data)
-{
-    int n = data.size();
-    std::vector<double> correlation(n, 0);
-    for (int k = 0; k < n; ++k) {
-        for (int i = 0; k + i < n; ++i) {
-            correlation[k] += data[i] * data[k + i];
-        }
-    }
-    return correlation;
+    return data;
 }
 
 double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
 {
-    int pace = 1 << (levels - 1);
-    double maxDecimation = pace;
-    int minIndex = (int)(60.0 / 220.0 * sampleRate / maxDecimation);
-    int maxIndex = (int)(60.0 / 40.0 * sampleRate / maxDecimation);
-
-    std::vector<decomposition> decomp = wavelet.decompose(data, levels);
-    int dCMinLength = int(decomp[0].second.size() / maxDecimation);
-    std::vector<double> dCSum(dCMinLength, 0);
-    std::vector<double> dC;
+    int pace = maxPace;
+    wavelet.decompose(data, decomp);
+    std::fill(dCSum.begin(), dCSum.end(), 0);
 
     // 4 Level DWT
     for (int loop = 0; loop < levels; ++loop) {
@@ -144,26 +120,22 @@ double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
         //  1) Undersample
         //  2) Absolute value
         //  3) Subtract mean
-        dC = undersample(decomp[loop].second, pace);
-        dC = abs(dC);
-        dC = normalize(dC);
-
-        // Recombine detail coeffients
-        add(dCSum, dC);
-
+        undersample(decomp[loop].second, pace, dC);
+        recombine(dC);
         pace >>= 1;
     }
 
     // Add the last approximated data
-    std::vector<double> aC = abs(decomp[levels - 1].first);
-    aC = normalize(aC);
-    add(dCSum, aC);
+    recombine(decomp[levels - 1].first);
 
     // Autocorrelation
-    std::vector<double> correlated = correlate_fft(dCSum);
+    correlate(dCSum);
 
     // Detect peak in correlated data
-    int location = detectPeak(correlated, minIndex, maxIndex);
+    double maxDecimation = maxPace;
+    int minIndex = (int)(60.0 / 220.0 * sampleRate / maxDecimation);
+    int maxIndex = (int)(60.0 / 40.0 * sampleRate / maxDecimation);
+    int location = detectPeak(dCSum, minIndex, maxIndex);
 
     // Compute window BPM given the peak
     return 60.0 / location * (sampleRate / maxDecimation);

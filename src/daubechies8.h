@@ -5,8 +5,7 @@ public:
     Daubechies8() {}
 
 protected:
-    // 1-D forward transform from time domain to Hilbert domain
-    decomposition forward(std::vector<double>& data) override;
+    void forward(std::vector<double>& data, decomposition& out) override;
 
 private:
     double scalingDecom[8] { -0.010597401784997278, 0.032883011666982945, 0.030841381835986965,

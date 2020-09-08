@@ -7,9 +7,11 @@ public:
     Wavelet() {}
 
     // 1-D forward transforms from time domain to all possible Hilbert domains
-    std::vector<decomposition> decompose(std::vector<double>& data, int maxLevel);
+    void decompose(std::vector<double>& data, std::vector<decomposition>& decomp);
+
+    static std::vector<decomposition> alloc(int size, int maxLevels);
 
 protected:
     // 1-D forward transform from time domain to Hilbert domain
-    virtual decomposition forward(std::vector<double>& data) = 0;
+    virtual void forward(std::vector<double>& data, decomposition& out) = 0;
 };

@@ -22,6 +22,18 @@ static std::vector<double> normalize(std::vector<double>& data)
     return data;
 }
 
+static std::vector<double> correlate_brute(std::vector<double>& data)
+{
+    int n = data.size();
+    std::vector<double> correlation(n, 0);
+    for (int k = 0; k < n; ++k) {
+        for (int i = 0; k + i < n; ++i) {
+            correlation[k] += data[i] * data[k + i];
+        }
+    }
+    return correlation;
+}
+
 int main()
 {
     std::default_random_engine generator;
@@ -38,7 +50,7 @@ int main()
     WaveletBPMDetector detector(44100, 131072);
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-    std::vector<double> corr_brute = detector.correlate_brute(data);
+    std::vector<double> corr_brute = correlate_brute(data);
 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     std::cout << "Time difference = "
@@ -47,7 +59,7 @@ int main()
 
     begin = std::chrono::steady_clock::now();
 
-    std::vector<double> corr_fft = detector.correlate_fft(data);
+    std::vector<double> corr_fft = detector.correlate(data);
 
     end = std::chrono::steady_clock::now();
     std::cout << "Time difference = "

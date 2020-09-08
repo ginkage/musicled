@@ -2,16 +2,24 @@
 
 #include "wavelet.h"
 
-// 1-D forward transforms from time domain to all possible Hilbert domains
-std::vector<decomposition> Wavelet::decompose(std::vector<double>& data, int maxLevel)
+std::vector<decomposition> Wavelet::alloc(int size, int maxLevel)
 {
-    int levels = std::min(std::ilogb(data.size()), maxLevel);
-    std::vector<decomposition> matDecomp(levels);
-    std::vector<double>* prev = &data;
-
+    int levels = std::min(std::ilogb(size), maxLevel);
+    std::vector<decomposition> decomp(levels);
+    int half = size / 2;
     for (int level = 0; level < levels; level++) {
-        prev = &(matDecomp[level] = forward(*prev)).first;
+        decomp[level] = { std::vector<double>(half), std::vector<double>(half) };
+        half >>= 1;
     }
+    return decomp;
+}
 
-    return matDecomp;
+// 1-D forward transforms from time domain to all possible Hilbert domains
+void Wavelet::decompose(std::vector<double>& data, std::vector<decomposition>& decomp)
+{
+    std::vector<double>* prev = &data;
+    for (unsigned int level = 0; level < decomp.size(); level++) {
+        forward(*prev, decomp[level]);
+        prev = &decomp[level].first;
+    }
 }

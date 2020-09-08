@@ -5,7 +5,7 @@ public:
     Daubechies4();
 
 protected:
-    decomposition forward(std::vector<double>& data) override;
+    void forward(std::vector<double>& data, decomposition& out) override;
 
 private:
     double scalingDecom[4];

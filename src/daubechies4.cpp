@@ -19,14 +19,13 @@ Daubechies4::Daubechies4()
     }
 }
 
-// 1-D forward transform from time domain to Hilbert domain
-decomposition Daubechies4::forward(std::vector<double>& data)
+void Daubechies4::forward(std::vector<double>& data, decomposition& out)
 {
     int length = data.size();
     int half = length >> 1;
     int mask = length - 1;
-    std::vector<double> energy = std::vector<double>(half);
-    std::vector<double> detail = std::vector<double>(half);
+    std::vector<double>& energy = out.first;
+    std::vector<double>& detail = out.second;
 
     for (int i = 0; i < half; ++i) {
         double e = 0, d = 0;
@@ -40,6 +39,4 @@ decomposition Daubechies4::forward(std::vector<double>& data)
         energy[i] = e;
         detail[i] = d;
     }
-
-    return { energy, detail };
 }

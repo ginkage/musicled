@@ -70,8 +70,9 @@ std::vector<double> data { 0.39098764440180633, 0.6538029234086782, 0.9046206992
 
 int main()
 {
+    std::vector<decomposition> decomp = Wavelet::alloc(data.size(), 8);
     Daubechies8 wavelet;
-    std::vector<decomposition> decomp = wavelet.decompose(data, 8);
+    wavelet.decompose(data, decomp);
     for (decomposition& d : decomp) {
         std::cout << "approx:";
         for (double& v : d.first) {
@@ -84,5 +85,14 @@ int main()
         }
         std::cout << std::endl;
     }
+
+    double last_approx = decomp[7].first[0], last_detail = decomp[7].second[0];
+    double approx = 8.113703714464428, detail = -0.2109971056451759;
+    double diff
+        = (std::abs((last_approx - approx) / approx) + std::abs((last_detail - detail) / detail))
+        / 2;
+
+    std::cout << "Rel. diff: " << diff << std::endl;
+
     return 0;
 }
