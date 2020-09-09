@@ -1,6 +1,10 @@
+#pragma once
+
 #include "daubechies8.h"
+#include "freq_data.h"
 
 #include <fftw3.h>
+#include <memory>
 #include <vector>
 
 /**
@@ -30,7 +34,7 @@
  **/
 class WaveletBPMDetector {
 public:
-    WaveletBPMDetector(double rate, int size);
+    WaveletBPMDetector(int rate, int size, std::shared_ptr<FreqData> data);
     ~WaveletBPMDetector();
 
     /**
@@ -45,8 +49,9 @@ public:
 
 private:
     void recombine(std::vector<double>& data);
+    int detectPeak(std::vector<double>& data);
 
-    double sampleRate;
+    int sampleRate;
     int windowSize;
 
     int levels;
@@ -58,10 +63,15 @@ private:
     int dCMinLength;
     std::vector<double> dC;
     std::vector<double> dCSum;
+    double minute;
+    int minIndex;
+    int maxIndex;
 
     // Autocorrelation
     double* in;
     fftw_complex* out;
     fftw_plan plan_forward;
     fftw_plan plan_back;
+
+    std::shared_ptr<FreqData> freq;
 };

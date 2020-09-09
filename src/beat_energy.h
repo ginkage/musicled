@@ -5,7 +5,8 @@
 
 class BeatEnergy : public BeatDetect {
 public:
-    BeatEnergy(GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts);
+    BeatEnergy(GlobalState* state, std::shared_ptr<CircularBuffer<Sample>> buf,
+        std::shared_ptr<ThreadSync> ts);
 
 protected:
     void detect() override;

@@ -1,12 +1,13 @@
 #include "beat_dwt.h"
 
-#include <iostream>
+//#include <iostream>
 #include <numeric>
 
-BeatDwt::BeatDwt(GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts,
-    double sampleRate, int windowSize)
+BeatDwt::BeatDwt(GlobalState* state, std::shared_ptr<CircularBuffer<Sample>> buf,
+    std::shared_ptr<ThreadSync> ts, std::shared_ptr<FreqData> freq, double sampleRate,
+    int windowSize)
     : BeatDetect(state, buf, ts, windowSize)
-    , detector(sampleRate, windowSize)
+    , detector(sampleRate, windowSize, freq)
 {
 }
 
@@ -20,5 +21,5 @@ void BeatDwt::detect()
     }
 
     double bpm = detector.computeWindowBpm(data);
-    std::cout << "Window BPM: " << bpm << std::endl << std::flush;
+    // std::cout << "Window BPM: " << bpm << std::endl << std::flush;
 }

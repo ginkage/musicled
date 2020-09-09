@@ -4,7 +4,7 @@
 #include <numeric>
 
 BeatEnergy::BeatEnergy(
-    GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts)
+    GlobalState* state, std::shared_ptr<CircularBuffer<Sample>> buf, std::shared_ptr<ThreadSync> ts)
     : BeatDetect(state, buf, ts, 1024)
     , energy(43)
 {

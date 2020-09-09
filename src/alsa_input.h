@@ -24,7 +24,7 @@ public:
     void join_thread();
 
     unsigned int get_rate() { return rate; }
-    CircularBuffer<Sample>* get_data() { return &samples; }
+    std::shared_ptr<CircularBuffer<Sample>> get_data() { return samples; }
 
 private:
     void input_alsa();
@@ -34,7 +34,7 @@ private:
     unsigned int channels; // Number of channels
 
     GlobalState* global; // Global state for thread termination
-    CircularBuffer<Sample> samples; // Audio samples
+    std::shared_ptr<CircularBuffer<Sample>> samples; // Audio samples
 
     snd_pcm_t* handle; // ALSA sound device handle
     snd_pcm_uframes_t frames; // Number of samples per single read

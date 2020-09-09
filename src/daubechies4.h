@@ -1,3 +1,5 @@
+#pragma once
+
 #include "wavelet.h"
 
 class Daubechies4 : public Wavelet {

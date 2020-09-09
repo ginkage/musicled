@@ -14,4 +14,8 @@ struct FreqData {
     std::vector<int> x; // Horizontal position in the visualization
     std::vector<double> amp; // Magnitude
     int minK, maxK; // The range of "meaningful" frequencies
+
+    bool ready;
+    std::vector<double> wx;
+    std::vector<double> wy;
 };

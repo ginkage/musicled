@@ -5,10 +5,9 @@
 #include <cmath>
 #include <complex>
 #include <cstring>
-#include <iostream>
 #include <numeric>
 
-WaveletBPMDetector::WaveletBPMDetector(double rate, int size)
+WaveletBPMDetector::WaveletBPMDetector(int rate, int size, std::shared_ptr<FreqData> data)
     : sampleRate(rate)
     , windowSize(size)
     , levels(4)
@@ -19,11 +18,22 @@ WaveletBPMDetector::WaveletBPMDetector(double rate, int size)
     , dCMinLength(corrSize / 2)
     , dC(dCMinLength)
     , dCSum(dCMinLength)
+    , minute(sampleRate * 60.0 / maxPace)
+    , minIndex(minute / 220.0)
+    , maxIndex(minute / 40.0)
     , in(corr.data())
     , out(fftw_alloc_complex(corrSize / 2 + 1))
     , plan_forward(fftw_plan_dft_r2c_1d(corrSize, in, out, FFTW_MEASURE))
     , plan_back(fftw_plan_dft_c2r_1d(corrSize, out, in, FFTW_MEASURE))
+    , freq(data)
 {
+    freq->wx = std::vector<double>(maxIndex - minIndex);
+    freq->wy = std::vector<double>(maxIndex - minIndex);
+    double nom = 1.0 / (1.0 / minIndex - 1.0 / maxIndex);
+    double start = nom / maxIndex;
+    for (int i = minIndex; i < maxIndex; ++i) {
+        freq->wx[i - minIndex] = nom / i - start;
+    }
 }
 
 WaveletBPMDetector::~WaveletBPMDetector()
@@ -40,14 +50,26 @@ WaveletBPMDetector::~WaveletBPMDetector()
  * @param data the input array from which to identify the maximum
  * @return the index of the maximum value in the array
  **/
-static int detectPeak(std::vector<double>& data, int minIndex, int maxIndex)
+int WaveletBPMDetector::detectPeak(std::vector<double>& data)
 {
     double max = DBL_MIN;
     maxIndex = std::min(maxIndex, (int)data.size());
 
+    // Straighten the curve
+    double start = data[minIndex] / (maxIndex - minIndex);
+    for (int i = minIndex; i < maxIndex; ++i) {
+        data[i] = data[i] - (maxIndex - i) * start;
+    }
+
     for (int i = minIndex; i < maxIndex; ++i) {
         max = std::max(max, std::fabs(data[i]));
     }
+
+    double scale = 1.0 / max;
+    for (int i = minIndex; i < maxIndex; ++i) {
+        freq->wy[i - minIndex] = data[i] * scale;
+    }
+    freq->ready = true;
 
     for (int i = minIndex; i < maxIndex; ++i) {
         if (data[i] == max) {
@@ -110,19 +132,17 @@ std::vector<double> WaveletBPMDetector::correlate(std::vector<double>& data)
 
 double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
 {
-    int pace = maxPace;
     wavelet.decompose(data, decomp);
     std::fill(dCSum.begin(), dCSum.end(), 0);
 
     // 4 Level DWT
-    for (int loop = 0; loop < levels; ++loop) {
+    for (int loop = 0, pace = maxPace; loop < levels; ++loop, pace >>= 1) {
         // Extract envelope from detail coefficients
         //  1) Undersample
         //  2) Absolute value
         //  3) Subtract mean
         undersample(decomp[loop].second, pace, dC);
         recombine(dC);
-        pace >>= 1;
     }
 
     // Add the last approximated data
@@ -132,11 +152,8 @@ double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
     correlate(dCSum);
 
     // Detect peak in correlated data
-    double maxDecimation = maxPace;
-    int minIndex = (int)(60.0 / 220.0 * sampleRate / maxDecimation);
-    int maxIndex = (int)(60.0 / 40.0 * sampleRate / maxDecimation);
-    int location = detectPeak(dCSum, minIndex, maxIndex);
+    int location = detectPeak(dCSum);
 
     // Compute window BPM given the peak
-    return 60.0 / location * (sampleRate / maxDecimation);
+    return minute / location;
 }

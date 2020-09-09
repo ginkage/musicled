@@ -1,12 +1,16 @@
 #pragma once
 
 #include "beat_detect.h"
+#include "freq_data.h"
 #include "wavelet_bpm_detector.h"
+
+#include <memory>
 
 class BeatDwt : public BeatDetect {
 public:
-    BeatDwt(GlobalState* state, CircularBuffer<Sample>* buf, std::shared_ptr<ThreadSync> ts,
-        double sampleRate, int windowSize);
+    BeatDwt(GlobalState* state, std::shared_ptr<CircularBuffer<Sample>> buf,
+        std::shared_ptr<ThreadSync> ts, std::shared_ptr<FreqData> freq, double sampleRate,
+        int windowSize);
 
 protected:
     void detect() override;

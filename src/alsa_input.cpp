@@ -7,7 +7,7 @@
 
 AlsaInput::AlsaInput(GlobalState* state, std::shared_ptr<ThreadSync> ts)
     : global(state)
-    , samples(524288)
+    , samples(new CircularBuffer<Sample>(524288))
     , sync(ts)
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
@@ -137,7 +137,7 @@ void AlsaInput::input_alsa()
                 pright += stride;
             }
 
-            sync->produce([&] { samples.write(data.data(), n); });
+            sync->produce([&] { samples->write(data.data(), n); });
         }
     }
 }

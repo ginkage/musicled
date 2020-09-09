@@ -1,10 +1,12 @@
+#pragma once
+
 #include <vector>
 
 typedef std::pair<std::vector<double>, std::vector<double>> decomposition;
 
 class Wavelet {
 public:
-    Wavelet() { }
+    Wavelet() {}
 
     // 1-D forward transforms from time domain to all possible Hilbert domains
     void decompose(std::vector<double>& data, std::vector<decomposition>& decomp);

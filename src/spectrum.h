@@ -25,7 +25,7 @@ private:
     GlobalState* global; // Global state to store the current color
     std::shared_ptr<ThreadSync> sync;
     AlsaInput audio; // Audio input thread
-    FreqData freq; // Precomputed per-frequency data
+    std::shared_ptr<FreqData> freq; // Precomputed per-frequency data
     FftData fft; // FFTW3 computations for the left and right channels
     BeatDwt beat; // Beat detector thread
 };

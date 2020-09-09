@@ -39,7 +39,7 @@ int main()
     std::default_random_engine generator;
     std::uniform_real_distribution<double> distribution(-32768.0, 32767.0);
 
-    std::vector<double> data(8192);
+    std::vector<double> data(16384);
     for (unsigned int i = 0; i < data.size(); ++i) {
         data[i] = distribution(generator);
     }
@@ -47,7 +47,7 @@ int main()
     data = abs(data);
     data = normalize(data);
 
-    WaveletBPMDetector detector(44100, 131072);
+    WaveletBPMDetector detector(44100, 262144, std::make_shared<FreqData>(FreqData(1, 1)));
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
     std::vector<double> corr_brute = correlate_brute(data);

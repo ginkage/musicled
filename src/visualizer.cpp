@@ -136,6 +136,23 @@ void Visualizer::redraw(FreqData& freq)
         }
     }
 
+    if (freq.ready) {
+        int half = height / 2;
+        int size = freq.wx.size();
+        XSetForeground(dis, gc, 0xffffffff);
+        lastx = width;
+        int lasty = half;
+        for (int i = 0; i < size; i++) {
+            int x = std::floor(freq.wx[i] * width + 0.5);
+            int y = half - half * freq.wy[i];
+            if (x != lastx) {
+                XDrawLine(dis, back_buffer, gc, lastx, lasty, x, y);
+                lastx = x;
+                lasty = y;
+            }
+        }
+    }
+
     // Show the result
     XCopyArea(dis, back_buffer, win, gc, 0, 0, width, height, 0, 0);
     XFlush(dis);
