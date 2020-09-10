@@ -141,14 +141,17 @@ void Visualizer::redraw(FreqData& freq)
         int size = freq.wx.size();
         XSetForeground(dis, gc, 0xffffffff);
         lastx = width;
-        int lasty = half;
+        int lasty = half, miny = 0;
         for (int i = 0; i < size; i++) {
             int x = std::floor(freq.wx[i] * width + 0.5);
             int y = half - half * freq.wy[i];
-            if (x != lastx) {
-                XDrawLine(dis, back_buffer, gc, lastx, lasty, x, y);
+            if (x == lastx) {
+                miny = std::min(y, miny);
+            } else {
+                XDrawLine(dis, back_buffer, gc, lastx, lasty, x, miny);
                 lastx = x;
-                lasty = y;
+                lasty = miny;
+                miny = y;
             }
         }
     }

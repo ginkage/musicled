@@ -7,5 +7,6 @@ struct GlobalState {
     GlobalState();
 
     bool terminate;
-    Color cur_Color;
+    Color cur_color;
+    double bpm;
 };

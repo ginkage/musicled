@@ -37,6 +37,6 @@ FreqData& Spectrum::process()
     }
 
     // Set the global color accordingly
-    global->cur_Color = freq->color[maxF];
+    global->cur_color = freq->color[maxF];
     return *freq;
 }
