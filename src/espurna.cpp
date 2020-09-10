@@ -1,4 +1,5 @@
 #include "espurna.h"
+#include "fps.h"
 #include "vsync.h"
 
 #include <iostream>
@@ -54,12 +55,16 @@ void Espurna::socket_send()
 
     Color col; // Last sent color
     char value[16];
-    hires_clock::time_point vcheck = hires_clock::now();
+    Fps fps;
+    hires_clock::time_point vcheck = hires_clock::now(), vsend = vcheck;
     while (!global->terminate) {
-        VSync vsync(2 * global->bpm / 60.0, &vcheck); // Wait between sending
+        VSync vsync(60, &vcheck); // Wait between checks
         if (col.ic != global->cur_color.ic) {
             col.ic = global->cur_color.ic;
+
             // The color has changed, send it to the LED strip!
+            VSync vsync(2 * global->bpm / 60.0, &vsend); // Wait between sending
+            fps.tick(8);
             snprintf(value, sizeof(value), "%d,%d,%d", col.r, col.g, col.b);
             send_message("rgb", value, api);
         }

@@ -141,7 +141,7 @@ void Visualizer::redraw(FreqData& freq)
         int size = freq.wx.size();
         XSetForeground(dis, gc, 0xffffffff);
         lastx = width;
-        int lasty = half, miny = 0;
+        int lasty = half, miny = half;
         for (int i = 0; i < size; i++) {
             int x = std::floor(freq.wx[i] * width + 0.5);
             int y = half - half * freq.wy[i];

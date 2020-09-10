@@ -362,9 +362,9 @@ void FluxLed::socket_send()
     while (!global->terminate) {
         VSync vsync(60); // Wait between checks
 
-        if (col.ic != global->cur_Color.ic) {
-            col.ic = global->cur_Color.ic;
-
+        if (col.ic != global->cur_color.ic) {
+            col.ic = global->cur_color.ic;
+            VSync vsync(2 * global->bpm / 60.0, &vsend); // Wait between sending
             // The color has changed, send it to the LED strip!
             set_rgb(col);
         }
