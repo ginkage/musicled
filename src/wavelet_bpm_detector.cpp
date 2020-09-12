@@ -27,6 +27,7 @@ WaveletBPMDetector::WaveletBPMDetector(int rate, int size, std::shared_ptr<FreqD
     , plan_back(fftw_plan_dft_c2r_1d(corrSize, out, in, FFTW_MEASURE))
     , freq(data)
 {
+    maxIndex = std::min(maxIndex, dCMinLength);
     freq->wx = std::vector<double>(maxIndex - minIndex);
     freq->wy = std::vector<double>(maxIndex - minIndex);
     double nom = 1.0 / (1.0 / minIndex - 1.0 / maxIndex);
@@ -53,7 +54,6 @@ WaveletBPMDetector::~WaveletBPMDetector()
 int WaveletBPMDetector::detectPeak(std::vector<double>& data)
 {
     double max = DBL_MIN;
-    maxIndex = std::min(maxIndex, (int)data.size());
 
     // Straighten the curve
     double start = data[minIndex] / (maxIndex - minIndex);
