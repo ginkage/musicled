@@ -28,7 +28,7 @@ Espurna::Espurna(std::string host, std::string api, GlobalState* state)
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
 
     // Start the output thread immediately
-    thread = std::thread([=] { socket_send(); });
+    thread = std::thread([this] { socket_send(); });
 }
 
 Espurna::~Espurna()
@@ -59,12 +59,11 @@ void Espurna::socket_send()
     hires_clock::time_point vcheck = hires_clock::now(), vsend = vcheck;
     while (!global->terminate) {
         VSync vsync(60, &vcheck); // Wait between checks
-
-        if (col.ic != global->cur_Color.ic) {
-            col.ic = global->cur_Color.ic;
+        if (col.ic != global->cur_color.ic) {
+            col.ic = global->cur_color.ic;
 
             // The color has changed, send it to the LED strip!
-            VSync vsync(8, &vsend); // Wait between sending
+            VSync vsync(2 * global->bpm / 60.0, &vsend); // Wait between sending
             fps.tick(8);
             snprintf(value, sizeof(value), "%d,%d,%d", col.r, col.g, col.b);
             send_message("rgb", value, api);

@@ -9,11 +9,11 @@ using hires_clock = std::chrono::high_resolution_clock;
 // Helper class to throttle loops to the specified rate in a simplest way.
 class VSync {
 public:
-    VSync(int frame_rate, hires_clock::time_point* prev = nullptr)
+    VSync(double frame_rate, hires_clock::time_point* prev = nullptr)
         : pstart(prev)
     {
         hires_clock::duration second = std::chrono::seconds(1);
-        frame_time = second / frame_rate;
+        frame_time = std::chrono::duration_cast<hires_clock::duration>(second / frame_rate);
 
         // If there is some info about the previous frame, use it!
         start = (pstart != nullptr) ? (*pstart) : hires_clock::now();

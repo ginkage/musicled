@@ -1,8 +1,8 @@
 #include "fft_data.h"
 
-#include <string.h>
+#include <cstring>
 
-FftData::FftData(int n, CircularBuffer<Sample>* buf)
+FftData::FftData(int n, std::shared_ptr<CircularBuffer<Sample>> buf)
     : size(n)
     , buffer(buf)
 {

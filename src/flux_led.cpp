@@ -24,7 +24,7 @@ FluxLed::FluxLed(std::string host, GlobalState* state)
     resolved = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
 
     // Start the output thread immediately
-    thread = std::thread([=] { socket_send(); });
+    thread = std::thread([this] { socket_send(); });
 }
 
 FluxLed::~FluxLed() { thread.join(); }
@@ -359,12 +359,12 @@ void FluxLed::socket_send()
     turn_on();
 
     Color col; // Last sent color
+    hires_clock::time_point vcheck = hires_clock::now(), vsend = vcheck;
     while (!global->terminate) {
-        VSync vsync(60); // Wait between checks
-
-        if (col.ic != global->cur_Color.ic) {
-            col.ic = global->cur_Color.ic;
-
+        VSync vsync(60, &vcheck); // Wait between checks
+        if (col.ic != global->cur_color.ic) {
+            col.ic = global->cur_color.ic;
+            VSync vsync(2 * global->bpm / 60.0, &vsend); // Wait between sending
             // The color has changed, send it to the LED strip!
             set_rgb(col);
         }

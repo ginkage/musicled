@@ -3,6 +3,8 @@
 #include <X11/Xos.h>
 #include <X11/Xutil.h>
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
 
 Visualizer::Visualizer(GlobalState* state)
     : global(state)
@@ -47,6 +49,9 @@ Visualizer::Visualizer(GlobalState* state)
 
     XSendEvent(dis, DefaultRootWindow(dis), False,
         SubstructureRedirectMask | SubstructureNotifyMask, &xev);
+
+    font_info = XLoadQueryFont(dis, "lucidasans-24");
+    XSetFont(dis, gc, font_info->fid);
 };
 
 Visualizer::~Visualizer()
@@ -72,6 +77,9 @@ bool Visualizer::handle_input()
             || (event.type == ClientMessage && (Atom)event.xclient.data.l[0] == close)) {
             global->terminate = true;
             return false;
+        }
+        if (event.type == ButtonPress) {
+            global->lock_bpm = !global->lock_bpm;
         }
     }
 
@@ -113,7 +121,7 @@ void Visualizer::redraw(FreqData& freq)
     handle_resize(freq);
 
     unsigned int width = last_width, height = last_height;
-    double ky = height * 0.125;
+    double ky = height / 64.0;
     double prevAmp = 0;
     int lastx = -1;
     int bottom = height;
@@ -133,6 +141,38 @@ void Visualizer::redraw(FreqData& freq)
             XSetForeground(dis, gc, freq.color[k].ic);
             XDrawLine(dis, back_buffer, gc, x, bottom, x, y);
         }
+    }
+
+    if (freq.ready) {
+        int half = height / 2;
+        int size = freq.wx.size();
+        XSetForeground(dis, gc, 0xffffffff);
+        lastx = width;
+        int lasty = half, miny = half;
+        for (int i = 0; i < size; i++) {
+            int x = std::floor(freq.wx[i] * width + 0.5);
+            int y = half - half * freq.wy[i];
+            if (x == lastx) {
+                miny = std::min(y, miny);
+            } else {
+                XDrawLine(dis, back_buffer, gc, lastx, lasty, x, miny);
+                lastx = x;
+                lasty = miny;
+                miny = y;
+            }
+        }
+        char buffer[16];
+        snprintf(buffer, sizeof(buffer), "%.1f", global->bpm);
+        int string_width = XTextWidth(font_info, buffer, strlen(buffer));
+        int font_height = font_info->ascent + font_info->descent;
+        XSetForeground(dis, gc, 0xff007f00);
+        if (global->lock_bpm) {
+            XFillRectangle(dis, back_buffer, gc, 0, 0, 20 + string_width, 20 + font_height);
+        } else {
+            XDrawRectangle(dis, back_buffer, gc, 0, 0, 20 + string_width, 20 + font_height);
+        }
+        XSetForeground(dis, gc, 0xffffffff);
+        XDrawString(dis, back_buffer, gc, 10, 10 + font_info->ascent, buffer, strlen(buffer));
     }
 
     // Show the result

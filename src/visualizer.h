@@ -21,6 +21,7 @@ private:
 
     GlobalState* global;
     Display* dis; // X11 display
+    XFontStruct* font_info;
     int screen; // X11 screen
     Window win; // X11 window
     GC gc; // X11 graphic context
