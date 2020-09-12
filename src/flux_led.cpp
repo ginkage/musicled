@@ -359,9 +359,9 @@ void FluxLed::socket_send()
     turn_on();
 
     Color col; // Last sent color
+    hires_clock::time_point vcheck = hires_clock::now(), vsend = vcheck;
     while (!global->terminate) {
-        VSync vsync(60); // Wait between checks
-
+        VSync vsync(60, &vcheck); // Wait between checks
         if (col.ic != global->cur_color.ic) {
             col.ic = global->cur_color.ic;
             VSync vsync(2 * global->bpm / 60.0, &vsend); // Wait between sending

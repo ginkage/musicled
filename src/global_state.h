@@ -9,4 +9,5 @@ struct GlobalState {
     bool terminate;
     Color cur_color;
     double bpm;
+    bool lock_bpm;
 };

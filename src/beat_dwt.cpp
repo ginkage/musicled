@@ -20,6 +20,9 @@ void BeatDwt::detect()
         data[i] = values[i].real() * norm;
     }
 
-    global->bpm = detector.computeWindowBpm(data);
+    double bpm = detector.computeWindowBpm(data);
+    if (!global->lock_bpm) {
+        global->bpm = bpm;
+    }
     // std::cout << "Window BPM: " << bpm << std::endl << std::flush;
 }

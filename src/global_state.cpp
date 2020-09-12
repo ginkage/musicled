@@ -19,7 +19,8 @@ void sig_handler(int sig_no)
 
 GlobalState::GlobalState()
     : terminate(false)
-    , bpm(240)
+    , bpm(120)
+    , lock_bpm(false)
 {
     // Handle Ctrl+C
     struct sigaction action;
