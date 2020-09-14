@@ -29,7 +29,7 @@ void BeatDetect::loop()
                 // If we have enough data (or it's time to stop)
                 return global->terminate
                     // || (samples->get_latest() >= last_read + (int64_t)values.size());
-                    || (samples->get_latest() >= values.size());
+                    || (samples->get_latest() >= (int64_t)values.size());
             },
             [&] {
                 // Then read the oldest samples while we're still locked to avoid missing data

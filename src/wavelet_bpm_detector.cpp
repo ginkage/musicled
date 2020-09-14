@@ -132,6 +132,7 @@ std::vector<double> WaveletBPMDetector::correlate(std::vector<double>& data)
 
 double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
 {
+    // Apply DWT
     wavelet.decompose(data, decomp);
     std::fill(dCSum.begin(), dCSum.end(), 0);
 
@@ -142,6 +143,8 @@ double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
         //  2) Absolute value
         //  3) Subtract mean
         undersample(decomp[loop].second, pace, dC);
+
+	// Recombine detail coeffients
         recombine(dC);
     }
 
