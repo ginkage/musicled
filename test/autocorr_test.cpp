@@ -53,7 +53,7 @@ int main()
     std::vector<double> corr_brute = correlate_brute(data);
 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    std::cout << "Time difference = "
+    std::cout << "Time (brute) = "
               << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count() << "[ns]"
               << std::endl;
 
@@ -62,7 +62,7 @@ int main()
     std::vector<double> corr_fft = detector.correlate(data);
 
     end = std::chrono::steady_clock::now();
-    std::cout << "Time difference = "
+    std::cout << "Time (fftw) = "
               << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count() << "[ns]"
               << std::endl;
 

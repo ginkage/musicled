@@ -53,7 +53,7 @@ WaveletBPMDetector::~WaveletBPMDetector()
  **/
 int WaveletBPMDetector::detectPeak(std::vector<double>& data)
 {
-    double max = DBL_MIN;
+    double max = DBL_MIN, maxP = DBL_MIN;
 
     // Straighten the curve
     double start = data[minIndex] / (maxIndex - minIndex);
@@ -63,6 +63,7 @@ int WaveletBPMDetector::detectPeak(std::vector<double>& data)
 
     for (int i = minIndex; i < maxIndex; ++i) {
         max = std::max(max, std::fabs(data[i]));
+        maxP = std::max(maxP, data[i]);
     }
 
     double scale = 1.0 / max;
@@ -72,13 +73,7 @@ int WaveletBPMDetector::detectPeak(std::vector<double>& data)
     freq->ready = true;
 
     for (int i = minIndex; i < maxIndex; ++i) {
-        if (data[i] == max) {
-            return i;
-        }
-    }
-
-    for (int i = minIndex; i < maxIndex; ++i) {
-        if (data[i] == -max) {
+        if (data[i] == maxP) {
             return i;
         }
     }

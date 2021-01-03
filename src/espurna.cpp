@@ -1,6 +1,4 @@
 #include "espurna.h"
-#include "fps.h"
-#include "vsync.h"
 
 #include <iostream>
 #include <stdio.h>
@@ -11,10 +9,12 @@ size_t write_data(void* buffer __attribute__((unused)), size_t size, size_t nmem
     return size * nmemb;
 }
 
-Espurna::Espurna(std::string host, std::string api, GlobalState* state)
+Espurna::Espurna(
+    std::string host, std::string api, GlobalState* state, std::shared_ptr<ThreadSync> ts)
     : hostname(host)
     , api_key(api)
     , global(state)
+    , sync(ts)
 {
     curl_global_init(CURL_GLOBAL_NOTHING);
 
@@ -55,19 +55,25 @@ void Espurna::socket_send()
 
     Color col; // Last sent color
     char value[16];
-    Fps fps;
-    hires_clock::time_point vcheck = hires_clock::now(), vsend = vcheck;
     while (!global->terminate) {
-        VSync vsync(60, &vcheck); // Wait between checks
-        if (col.ic != global->cur_color.ic) {
-            col.ic = global->cur_color.ic;
-
-            // The color has changed, send it to the LED strip!
-            VSync vsync(2 * global->bpm / 60.0, &vsend); // Wait between sending
-            fps.tick(8);
-            snprintf(value, sizeof(value), "%d,%d,%d", col.r, col.g, col.b);
-            send_message("rgb", value, api);
-        }
+        sync->consume(
+            [&] {
+                // If the color has changed (or it's time to stop)
+                return global->terminate || (col.ic != global->send_color.ic);
+            },
+            [&] {
+                // Then cache the color locally
+                if (!global->terminate) {
+                    col.ic = global->send_color.ic;
+                }
+            },
+            [&] {
+                // And continue sending the color after unlocking the mutex
+                if (!global->terminate) {
+                    snprintf(value, sizeof(value), "%d,%d,%d", col.r, col.g, col.b);
+                    send_message("rgb", value, api);
+                }
+            });
     }
 
     send_message("relay/0", "0", api);

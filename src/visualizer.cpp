@@ -50,7 +50,7 @@ Visualizer::Visualizer(GlobalState* state)
     XSendEvent(dis, DefaultRootWindow(dis), False,
         SubstructureRedirectMask | SubstructureNotifyMask, &xev);
 
-    font_info = XLoadQueryFont(dis, "lucidasans-24");
+    font_info = XLoadQueryFont(dis, "fixed");
     XSetFont(dis, gc, font_info->fid);
 };
 

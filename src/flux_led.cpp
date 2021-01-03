@@ -1,5 +1,4 @@
 #include "flux_led.h"
-#include "vsync.h"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -12,9 +11,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-FluxLed::FluxLed(std::string host, GlobalState* state)
+FluxLed::FluxLed(std::string host, GlobalState* state, std::shared_ptr<ThreadSync> ts)
     : hostname(host)
     , global(state)
+    , sync(ts)
 {
     hostent* host_entry = gethostbyname(host.c_str());
     if (host_entry == nullptr) {
@@ -359,15 +359,24 @@ void FluxLed::socket_send()
     turn_on();
 
     Color col; // Last sent color
-    hires_clock::time_point vcheck = hires_clock::now(), vsend = vcheck;
     while (!global->terminate) {
-        VSync vsync(60, &vcheck); // Wait between checks
-        if (col.ic != global->cur_color.ic) {
-            col.ic = global->cur_color.ic;
-            VSync vsync(2 * global->bpm / 60.0, &vsend); // Wait between sending
-            // The color has changed, send it to the LED strip!
-            set_rgb(col);
-        }
+        sync->consume(
+            [&] {
+                // If the color has changed (or it's time to stop)
+                return global->terminate || (col.ic != global->send_color.ic);
+            },
+            [&] {
+                // Then cache the color locally
+                if (!global->terminate) {
+                    col.ic = global->send_color.ic;
+                }
+            },
+            [&] {
+                // And continue sending the color after unlocking the mutex
+                if (!global->terminate) {
+                    set_rgb(col);
+                }
+            });
     }
 
     turn_off();

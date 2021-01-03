@@ -1,6 +1,7 @@
 #pragma once
 
 #include "global_state.h"
+#include "thread_sync.h"
 
 #include <curl/curl.h>
 #include <string>
@@ -11,7 +12,7 @@
 // from the global state to the specified host name, destruction joins it.
 class Espurna {
 public:
-    Espurna(std::string host, std::string api, GlobalState* state);
+    Espurna(std::string host, std::string api, GlobalState* state, std::shared_ptr<ThreadSync> ts);
     ~Espurna();
 
 private:
@@ -23,4 +24,5 @@ private:
     std::string api_key; // API key for the RESTless API
     GlobalState* global; // Global state for thread termination
     std::thread thread; // Output thread
+    std::shared_ptr<ThreadSync> sync;
 };

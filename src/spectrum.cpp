@@ -15,7 +15,6 @@ Spectrum::Spectrum(GlobalState* state, int N)
 Spectrum::~Spectrum()
 {
     beat.join_thread();
-    sync->produce([] {}); // No-op to release the consumer thread
     audio.join_thread();
 }
 

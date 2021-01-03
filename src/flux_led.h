@@ -2,6 +2,7 @@
 
 #include "color.h"
 #include "global_state.h"
+#include "thread_sync.h"
 
 #include <string>
 #include <thread>
@@ -11,7 +12,7 @@ class FluxLed {
     using message = std::vector<unsigned char>;
 
 public:
-    FluxLed(std::string host, GlobalState* state);
+    FluxLed(std::string host, GlobalState* state, std::shared_ptr<ThreadSync> ts);
     ~FluxLed();
 
 private:
@@ -31,6 +32,7 @@ private:
     std::string resolved; // Resolved IP address
     GlobalState* global; // Global state for thread termination
     std::thread thread; // Output thread
+    std::shared_ptr<ThreadSync> sync;
 
     enum Protocol { PROT_UNKNOWN, PROT_LEDENET_ORIGINAL, PROT_LEDENET };
 

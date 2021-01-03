@@ -1,4 +1,5 @@
 #include "beat_detect.h"
+#include "fps.h"
 
 #include <iostream>
 #include <memory>
@@ -23,6 +24,7 @@ void BeatDetect::join_thread() { thread.join(); }
 void BeatDetect::loop()
 {
     // int64_t last_read = 0;
+    Fps fps;
     while (!global->terminate) {
         sync->consume(
             [&] {
@@ -44,5 +46,6 @@ void BeatDetect::loop()
                     detect();
                 }
             });
+        fps.tick(50);
     }
 }

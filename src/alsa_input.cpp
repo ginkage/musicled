@@ -140,4 +140,6 @@ void AlsaInput::input_alsa()
             sync->produce([&] { samples->write(data.data(), n); });
         }
     }
+
+    sync->produce([] {}); // No-op to release the consumer thread
 }
