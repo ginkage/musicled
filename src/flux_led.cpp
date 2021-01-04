@@ -12,9 +12,8 @@
 #include <unistd.h>
 
 FluxLed::FluxLed(std::string host, GlobalState* state, std::shared_ptr<ThreadSync> ts)
-    : hostname(host)
-    , global(state)
-    , sync(ts)
+    : LedStrip(state, ts)
+    , hostname(host)
 {
     hostent* host_entry = gethostbyname(host.c_str());
     if (host_entry == nullptr) {
@@ -24,10 +23,10 @@ FluxLed::FluxLed(std::string host, GlobalState* state, std::shared_ptr<ThreadSyn
     resolved = inet_ntoa(*((in_addr*)host_entry->h_addr_list[0]));
 
     // Start the output thread immediately
-    thread = std::thread([this] { socket_send(); });
+    start_thread();
 }
 
-FluxLed::~FluxLed() { thread.join(); }
+FluxLed::~FluxLed() {}
 
 static inline int socket_connect(std::string& host, in_port_t port)
 {
@@ -54,7 +53,7 @@ static inline int socket_connect(std::string& host, in_port_t port)
 void FluxLed::close()
 {
     if (_socket != 0) {
-        shutdown(_socket, SHUT_RDWR);
+        ::shutdown(_socket, SHUT_RDWR);
         ::close(_socket);
         _socket = 0;
     }
@@ -350,35 +349,16 @@ void FluxLed::set_rgb(Color c)
     send_msg(msg);
 }
 
-void FluxLed::socket_send()
+void FluxLed::startup()
 {
     std::cout << "Connecting to " << hostname << " as " << resolved << std::endl;
-
     connect();
     update_state();
     turn_on();
+}
 
-    Color col; // Last sent color
-    while (!global->terminate) {
-        sync->consume(
-            [&] {
-                // If the color has changed (or it's time to stop)
-                return global->terminate || (col.ic != global->send_color.ic);
-            },
-            [&] {
-                // Then cache the color locally
-                if (!global->terminate) {
-                    col.ic = global->send_color.ic;
-                }
-            },
-            [&] {
-                // And continue sending the color after unlocking the mutex
-                if (!global->terminate) {
-                    set_rgb(col);
-                }
-            });
-    }
-
+void FluxLed::shutdown()
+{
     turn_off();
     close();
 }

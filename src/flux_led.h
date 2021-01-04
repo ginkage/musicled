@@ -2,18 +2,22 @@
 
 #include "color.h"
 #include "global_state.h"
+#include "led_strip.h"
 #include "thread_sync.h"
 
 #include <string>
-#include <thread>
 #include <vector>
 
-class FluxLed {
+class FluxLed : public LedStrip {
     using message = std::vector<unsigned char>;
 
 public:
     FluxLed(std::string host, GlobalState* state, std::shared_ptr<ThreadSync> ts);
     ~FluxLed();
+
+    void startup() override;
+    void shutdown() override;
+    void set_rgb(Color c) override;
 
 private:
     void connect();
@@ -25,14 +29,9 @@ private:
     void update_state();
     void turn_on();
     void turn_off();
-    void set_rgb(Color c);
-    void socket_send();
 
     std::string hostname; // Host name of the LED strip
     std::string resolved; // Resolved IP address
-    GlobalState* global; // Global state for thread termination
-    std::thread thread; // Output thread
-    std::shared_ptr<ThreadSync> sync;
 
     enum Protocol { PROT_UNKNOWN, PROT_LEDENET_ORIGINAL, PROT_LEDENET };
 
