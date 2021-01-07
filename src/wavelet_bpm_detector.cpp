@@ -139,7 +139,7 @@ double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
         //  3) Subtract mean
         undersample(decomp[loop].second, pace, dC);
 
-	// Recombine detail coeffients
+        // Recombine detail coeffients
         recombine(dC);
     }
 
