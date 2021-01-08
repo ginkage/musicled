@@ -8,19 +8,21 @@ BeatDwt::BeatDwt(GlobalState* state, std::shared_ptr<CircularBuffer<Sample>> buf
     int windowSize)
     : BeatDetect(state, buf, ts, windowSize)
     , detector(sampleRate, windowSize, freq)
+    , slide(std::chrono::seconds(5))
 {
 }
 
 void BeatDwt::detect()
 {
-    // Latest values, single channel, denormalized
-    const double norm = std::sqrt(2.0);
+    // Latest values, absolute
     std::vector<double> data(values.size());
     for (unsigned int i = 0; i < values.size(); ++i) {
-        data[i] = values[i].real() * norm;
+        data[i] = std::abs(values[i]);
     }
 
     double bpm = detector.computeWindowBpm(data);
+    auto sample = std::make_pair(bpm, std::chrono::steady_clock::now());
+    bpm = slide.offer(sample);
     if (!global->lock_bpm) {
         global->bpm = bpm;
     }

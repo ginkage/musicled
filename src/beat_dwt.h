@@ -2,8 +2,10 @@
 
 #include "beat_detect.h"
 #include "freq_data.h"
+#include "sliding_median.h"
 #include "wavelet_bpm_detector.h"
 
+#include <chrono>
 #include <memory>
 
 class BeatDwt : public BeatDetect {
@@ -16,4 +18,8 @@ protected:
     void detect() override;
 
     WaveletBPMDetector detector;
+
+    using Timestamp = std::chrono::steady_clock::time_point;
+    using Duration = std::chrono::steady_clock::duration;
+    SlidingMedian<double, Timestamp, Duration> slide;
 };
