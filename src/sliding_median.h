@@ -10,7 +10,7 @@ public:
     {
     }
 
-    T offer(Sample& sample)
+    T offer(const Sample& sample)
     {
         // Assume that equal timestamps correspond to equal values.
         // Remove oldest values from the old data.

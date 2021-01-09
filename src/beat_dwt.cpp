@@ -21,8 +21,7 @@ void BeatDwt::detect()
     }
 
     double bpm = detector.computeWindowBpm(data);
-    auto sample = std::make_pair(bpm, std::chrono::steady_clock::now());
-    bpm = slide.offer(sample);
+    bpm = slide.offer(std::make_pair(bpm, std::chrono::steady_clock::now()));
     if (!global->lock_bpm) {
         global->bpm = bpm;
     }
