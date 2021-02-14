@@ -25,7 +25,7 @@ WaveletBPMDetector::WaveletBPMDetector(int rate, int size, std::shared_ptr<FreqD
     , out(fftw_alloc_complex(corrSize / 2 + 1))
     , plan_forward(fftw_plan_dft_r2c_1d(corrSize, in, out, FFTW_MEASURE))
     , plan_back(fftw_plan_dft_c2r_1d(corrSize, out, in, FFTW_MEASURE))
-    , freq(data)
+    , freq(std::move(data))
 {
     maxIndex = std::min(maxIndex, dCMinLength);
     freq->wx = std::vector<double>(maxIndex - minIndex);
@@ -95,7 +95,7 @@ void WaveletBPMDetector::recombine(std::vector<double>& data)
         value = std::fabs(value);
     }
 
-    double mean = std::accumulate(data.begin(), data.end(), 0) / (double)data.size();
+    double mean = std::accumulate(data.begin(), data.end(), 0.0) / (double)data.size();
 
     for (int i = 0; i < dCMinLength; ++i) {
         dCSum[i] += data[i] - mean;

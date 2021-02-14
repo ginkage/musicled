@@ -18,8 +18,8 @@ std::vector<decomposition> Wavelet::alloc(int size, int maxLevel)
 void Wavelet::decompose(std::vector<double>& data, std::vector<decomposition>& decomp)
 {
     std::vector<double>* prev = &data;
-    for (unsigned int level = 0; level < decomp.size(); level++) {
-        forward(*prev, decomp[level]);
-        prev = &decomp[level].first;
+    for (auto& level : decomp) {
+        forward(*prev, level);
+        prev = &level.first;
     }
 }
