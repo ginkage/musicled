@@ -57,7 +57,7 @@ int WaveletBPMDetector::detectPeak(std::vector<float>& data)
 
     // Straighten the curve
     for (int i = minIndex; i < maxIndex; ++i) {
-        data[i] = data[i] / float(windowSize - i);
+        data[i] /= float(windowSize - i);
     }
 
     for (int i = minIndex; i < maxIndex; ++i) {
