@@ -24,11 +24,11 @@ FreqData& Spectrum::process()
     Sample* out = fft.execute();
 
     int maxF = freq->minK;
-    double maxAmp = 0;
+    float maxAmp = 0;
 
     // Find the loudest frequency
     for (int k = freq->minK; k < freq->maxK; k++) {
-        double amp = freq->amp[k] = std::abs(out[k]);
+        float amp = freq->amp[k] = std::abs(out[k]);
         if (amp > maxAmp) {
             maxAmp = amp;
             maxF = k;

@@ -14,24 +14,24 @@ WaveletBPMDetector::WaveletBPMDetector(int rate, int size, std::shared_ptr<FreqD
     , maxPace(1 << (levels - 1))
     , corrSize(size / maxPace)
     , corr(corrSize)
-    , decomp(Wavelet::alloc(size, levels))
+    , wavelet(size, levels)
     , dCMinLength(corrSize / 2)
     , dC(dCMinLength)
     , dCSum(dCMinLength)
-    , minute(sampleRate * 60.0 / maxPace)
-    , minIndex(minute / 220.0)
-    , maxIndex(minute / 40.0)
+    , minute(sampleRate * 60.0f / maxPace)
+    , minIndex(minute / 220.0f)
+    , maxIndex(minute / 40.0f)
     , in(corr.data())
-    , out(fftw_alloc_complex(corrSize / 2 + 1))
-    , plan_forward(fftw_plan_dft_r2c_1d(corrSize, in, out, FFTW_MEASURE))
-    , plan_back(fftw_plan_dft_c2r_1d(corrSize, out, in, FFTW_MEASURE))
+    , out(fftwf_alloc_complex(corrSize / 2 + 1))
+    , plan_forward(fftwf_plan_dft_r2c_1d(corrSize, in, out, FFTW_ESTIMATE))
+    , plan_back(fftwf_plan_dft_c2r_1d(corrSize, out, in, FFTW_ESTIMATE))
     , freq(std::move(data))
 {
     maxIndex = std::min(maxIndex, dCMinLength);
-    freq->wx = std::vector<double>(maxIndex - minIndex);
-    freq->wy = std::vector<double>(maxIndex - minIndex);
-    double nom = 1.0 / (1.0 / minIndex - 1.0 / maxIndex);
-    double start = nom / maxIndex;
+    freq->wx = std::vector<float>(maxIndex - minIndex);
+    freq->wy = std::vector<float>(maxIndex - minIndex);
+    float nom = 1.0f / (1.0f / minIndex - 1.0f / maxIndex);
+    float start = nom / maxIndex;
     for (int i = minIndex; i < maxIndex; ++i) {
         freq->wx[i - minIndex] = nom / i - start;
     }
@@ -39,9 +39,9 @@ WaveletBPMDetector::WaveletBPMDetector(int rate, int size, std::shared_ptr<FreqD
 
 WaveletBPMDetector::~WaveletBPMDetector()
 {
-    fftw_destroy_plan(plan_forward);
-    fftw_destroy_plan(plan_back);
-    fftw_free(out);
+    fftwf_destroy_plan(plan_forward);
+    fftwf_destroy_plan(plan_back);
+    fftwf_free(out);
 }
 
 /**
@@ -51,12 +51,12 @@ WaveletBPMDetector::~WaveletBPMDetector()
  * @param data the input array from which to identify the maximum
  * @return the index of the maximum value in the array
  **/
-int WaveletBPMDetector::detectPeak(std::vector<double>& data)
+int WaveletBPMDetector::detectPeak(std::vector<float>& data)
 {
-    double max = DBL_MIN, maxP = DBL_MIN;
+    float max = FLT_MIN, maxP = FLT_MIN;
 
     // Straighten the curve
-    double start = data[minIndex] / (maxIndex - minIndex);
+    float start = data[minIndex] / (maxIndex - minIndex);
     for (int i = minIndex; i < maxIndex; ++i) {
         data[i] = data[i] - (maxIndex - i) * start;
     }
@@ -66,7 +66,7 @@ int WaveletBPMDetector::detectPeak(std::vector<double>& data)
         maxP = std::max(maxP, data[i]);
     }
 
-    double scale = 1.0 / max;
+    float scale = 1.0f / max;
     for (int i = minIndex; i < maxIndex; ++i) {
         freq->wy[i - minIndex] = data[i] * scale;
     }
@@ -81,7 +81,7 @@ int WaveletBPMDetector::detectPeak(std::vector<double>& data)
     return -1;
 }
 
-static void undersample(std::vector<double>& data, int pace, std::vector<double>& out)
+static void undersample(std::vector<float>& data, int pace, std::vector<float>& out)
 {
     int length = data.size();
     for (int i = 0, j = 0; j < length; ++i, j += pace) {
@@ -89,35 +89,35 @@ static void undersample(std::vector<double>& data, int pace, std::vector<double>
     }
 }
 
-void WaveletBPMDetector::recombine(std::vector<double>& data)
+void WaveletBPMDetector::recombine(std::vector<float>& data)
 {
-    for (double& value : data) {
+    for (float& value : data) {
         value = std::fabs(value);
     }
 
-    double mean = std::accumulate(data.begin(), data.end(), 0.0) / (double)data.size();
+    float mean = std::accumulate(data.begin(), data.end(), 0.0f) / (float)data.size();
 
     for (int i = 0; i < dCMinLength; ++i) {
         dCSum[i] += data[i] - mean;
     }
 }
 
-std::vector<double> WaveletBPMDetector::correlate(std::vector<double>& data)
+std::vector<float> WaveletBPMDetector::correlate(std::vector<float>& data)
 {
     int n = data.size();
-    memcpy(in, data.data(), n * sizeof(double));
-    memset(in + n, 0, n * sizeof(double));
+    memcpy(in, data.data(), n * sizeof(float));
+    memset(in + n, 0, n * sizeof(float));
 
-    fftw_execute(plan_forward);
+    fftwf_execute(plan_forward);
 
-    std::complex<double>* cplx = (std::complex<double>*)out;
+    std::complex<float>* cplx = (std::complex<float>*)out;
     for (int i = 0; i <= n; i++) {
         cplx[i] *= std::conj(cplx[i]);
     }
 
-    fftw_execute(plan_back);
+    fftwf_execute(plan_back);
 
-    double scale = 1.0 / corrSize;
+    float scale = 1.0f / corrSize;
     for (int i = 0; i < n; i++) {
         data[i] = corr[i] * scale;
     }
@@ -125,10 +125,10 @@ std::vector<double> WaveletBPMDetector::correlate(std::vector<double>& data)
     return data;
 }
 
-double WaveletBPMDetector::computeWindowBpm(std::vector<double>& data)
+float WaveletBPMDetector::computeWindowBpm(std::vector<float>& data)
 {
     // Apply DWT
-    wavelet.decompose(data, decomp);
+    std::vector<decomposition>& decomp = wavelet.decompose(data);
     std::fill(dCSum.begin(), dCSum.end(), 0);
 
     // 4 Level DWT

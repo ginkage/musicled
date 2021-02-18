@@ -1,7 +1,7 @@
 #pragma once
 
-#include "daubechies8.h"
 #include "freq_data.h"
+#include "wavelet.h"
 
 #include <fftw3.h>
 #include <memory>
@@ -42,14 +42,14 @@ public:
      * value for the window and pushes it in <code>instantBpm</code>
      * @param An array of <code>windowFrames</code> samples representing the window
      **/
-    double computeWindowBpm(std::vector<double>& data);
+    float computeWindowBpm(std::vector<float>& data);
 
     // For testing
-    std::vector<double> correlate(std::vector<double>& data);
+    std::vector<float> correlate(std::vector<float>& data);
 
 private:
-    void recombine(std::vector<double>& data);
-    int detectPeak(std::vector<double>& data);
+    void recombine(std::vector<float>& data);
+    int detectPeak(std::vector<float>& data);
 
     int sampleRate;
     int windowSize;
@@ -57,21 +57,20 @@ private:
     int levels;
     int maxPace;
     int corrSize;
-    std::vector<double> corr;
-    Daubechies8 wavelet;
-    std::vector<decomposition> decomp;
+    std::vector<float> corr;
+    Wavelet wavelet;
     int dCMinLength;
-    std::vector<double> dC;
-    std::vector<double> dCSum;
-    double minute;
+    std::vector<float> dC;
+    std::vector<float> dCSum;
+    float minute;
     int minIndex;
     int maxIndex;
 
     // Autocorrelation
-    double* in;
-    fftw_complex* out;
-    fftw_plan plan_forward;
-    fftw_plan plan_back;
+    float* in;
+    fftwf_complex* out;
+    fftwf_plan plan_forward;
+    fftwf_plan plan_back;
 
     std::shared_ptr<FreqData> freq;
 };

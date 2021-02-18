@@ -94,9 +94,9 @@ void Visualizer::handle_resize(FreqData& freq)
     XGetGeometry(dis, win, &root, &xx, &yy, &width, &height, &bw, &dr);
 
     // The notes range is slightly wider than what we'll draw, to add a border
-    double minNote = 34;
-    double maxNote = 110;
-    double kx = width / (maxNote - minNote);
+    float minNote = 34;
+    float maxNote = 110;
+    float kx = width / (maxNote - minNote);
 
     // If the window was resized...
     if (width != last_width || height != last_height) {
@@ -121,8 +121,8 @@ void Visualizer::redraw(FreqData& freq)
     handle_resize(freq);
 
     unsigned int width = last_width, height = last_height;
-    double ky = height / 64.0;
-    double prevAmp = 0;
+    float ky = height / 64.0f;
+    float prevAmp = 0.0f;
     int lastx = -1;
     int bottom = height;
 
@@ -136,7 +136,7 @@ void Visualizer::redraw(FreqData& freq)
         int x = freq.x[k];
         if (lastx < x) {
             lastx = x; // + 3; // Leave some space between the lines
-            int y = bottom - prevAmp * ky - 0.5;
+            int y = bottom - prevAmp * ky - 0.5f;
             prevAmp = 0;
             XSetForeground(dis, gc, freq.color[k].ic);
             XDrawLine(dis, back_buffer, gc, x, bottom, x, y);
@@ -150,7 +150,7 @@ void Visualizer::redraw(FreqData& freq)
         lastx = width;
         int lasty = half, miny = half;
         for (int i = 0; i < size; i++) {
-            int x = std::floor(freq.wx[i] * width + 0.5);
+            int x = std::floor(freq.wx[i] * width + 0.5f);
             int y = half - half * freq.wy[i];
             if (x == lastx) {
                 miny = std::min(y, miny);

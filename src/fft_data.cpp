@@ -6,22 +6,22 @@ FftData::FftData(int n, std::shared_ptr<CircularBuffer<Sample>> buf)
     : size(n)
     , buffer(buf)
 {
-    in = fftw_alloc_complex(n);
-    out = fftw_alloc_complex(n);
-    plan = fftw_plan_dft_1d(n, in, out, FFTW_FORWARD, FFTW_MEASURE);
-    memset(out, 0, n * sizeof(fftw_complex));
+    in = fftwf_alloc_complex(n);
+    out = fftwf_alloc_complex(n);
+    plan = fftwf_plan_dft_1d(n, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+    memset(out, 0, n * sizeof(fftwf_complex));
 }
 
 FftData::~FftData()
 {
-    fftw_destroy_plan(plan);
-    fftw_free(out);
-    fftw_free(in);
+    fftwf_destroy_plan(plan);
+    fftwf_free(out);
+    fftwf_free(in);
 }
 
 Sample* FftData::execute()
 {
     buffer->read(reinterpret_cast<Sample*>(in), size);
-    fftw_execute(plan);
+    fftwf_execute(plan);
     return reinterpret_cast<Sample*>(out);
 }

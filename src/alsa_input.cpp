@@ -112,7 +112,7 @@ void AlsaInput::input_alsa()
     const int roff = stride - 2;
 
     // Absolute value of all samples will stay wihin [0, 1]
-    const double norm = 1.0 / (32768.0 * std::sqrt(2.0));
+    const float norm = 1.0f / (32768.0f * std::sqrt(2.0f));
 
     std::vector<uint8_t> buffer(frames * stride);
     std::vector<Sample> data(frames);
