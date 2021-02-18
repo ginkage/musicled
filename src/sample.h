@@ -2,4 +2,4 @@
 
 #include <complex>
 
-typedef std::complex<double> Sample;
+typedef std::complex<float> Sample;

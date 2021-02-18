@@ -1,11 +1,11 @@
 #include <queue>
 #include <set>
 
-template <class T, class Timestamp, class Delta> class SlidingMedian {
+template <class T, class Timestamp, class Duration> class SlidingMedian {
     using Sample = std::pair<T, Timestamp>;
 
 public:
-    SlidingMedian(Delta window)
+    SlidingMedian(Duration window)
         : windowSize(window)
     {
     }
@@ -16,14 +16,9 @@ public:
         // Remove oldest values from the old data.
         Timestamp oldest = sample.second - windowSize;
         while (!data.empty() && data.front().second <= oldest) {
-            auto it = left.find(data.front());
-            if (it != left.end()) {
-                left.erase(it);
-            } else {
-                it = right.find(data.front());
-                if (it != right.end()) {
-                    right.erase(it);
-                }
+            Sample& s = data.front();
+            if (left.erase(s) == 0) {
+                right.erase(s);
             }
             data.pop();
         }
@@ -52,9 +47,7 @@ public:
         // Return the new median value.
         T middle = right.begin()->first;
         if (left.size() == right.size()) {
-            auto it = left.end();
-            --it;
-            return (it->first + middle) / 2;
+            return (left.rbegin()->first + middle) / 2;
         }
 
         // left.size() < right.size()
@@ -62,7 +55,7 @@ public:
     }
 
 private:
-    Delta windowSize;
+    Duration windowSize;
 
     // Sorted by timestamp
     std::queue<Sample> data;

@@ -23,9 +23,9 @@ GlobalState::GlobalState()
     , lock_bpm(false)
 {
     // Handle Ctrl+C
-    struct sigaction action;
-    memset(&action, 0, sizeof(action));
-    g_terminate = &terminate;
-    action.sa_handler = &sig_handler;
-    sigaction(SIGINT, &action, NULL);
+    // struct sigaction action;
+    // memset(&action, 0, sizeof(action));
+    // g_terminate = &terminate;
+    // action.sa_handler = &sig_handler;
+    // sigaction(SIGINT, &action, NULL);
 }
