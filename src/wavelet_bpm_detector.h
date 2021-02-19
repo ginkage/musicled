@@ -62,7 +62,6 @@ private:
     int dCMinLength;
     std::vector<float> dC;
     std::vector<float> dCSum;
-    std::vector<float> straight;
     float minute;
     int minIndex;
     int maxIndex;
