@@ -18,6 +18,7 @@ WaveletBPMDetector::WaveletBPMDetector(int rate, int size, std::shared_ptr<FreqD
     , dCMinLength(corrSize / 2)
     , dC(dCMinLength)
     , dCSum(dCMinLength)
+    , straight(dCMinLength)
     , minute(sampleRate * 60.0f / maxPace)
     , minIndex(minute / 220.0f)
     , maxIndex(minute / 40.0f)
@@ -34,6 +35,7 @@ WaveletBPMDetector::WaveletBPMDetector(int rate, int size, std::shared_ptr<FreqD
     float start = nom / maxIndex;
     for (int i = minIndex; i < maxIndex; ++i) {
         freq->wx[i - minIndex] = nom / i - start;
+        straight[i] = 1.0f / (windowSize - i);
     }
 }
 
@@ -54,30 +56,23 @@ WaveletBPMDetector::~WaveletBPMDetector()
 int WaveletBPMDetector::detectPeak(std::vector<float>& data)
 {
     float max = FLT_MIN, maxP = FLT_MIN;
-
-    // Straighten the curve
     for (int i = minIndex; i < maxIndex; ++i) {
-        data[i] /= float(windowSize - i);
-    }
-
-    for (int i = minIndex; i < maxIndex; ++i) {
+        data[i] *= straight[i];
         max = std::max(max, std::fabs(data[i]));
         maxP = std::max(maxP, data[i]);
     }
 
+    int k = -1;
     float scale = 1.0f / max;
     for (int i = minIndex; i < maxIndex; ++i) {
         freq->wy[i - minIndex] = data[i] * scale;
-    }
-    freq->ready = true;
-
-    for (int i = minIndex; i < maxIndex; ++i) {
-        if (data[i] == maxP) {
-            return i;
+        if (data[i] == maxP && k < 0) {
+            k = i;
         }
     }
 
-    return -1;
+    freq->ready = true;
+    return k;
 }
 
 static void undersample(std::vector<float>& data, int pace, std::vector<float>& out)
