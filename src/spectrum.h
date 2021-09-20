@@ -1,6 +1,6 @@
 #pragma once
 
-#include "alsa_input.h"
+#include "audio_input.h"
 #include "beat_detect.h"
 #include "fft_data.h"
 #include "freq_data.h"
@@ -24,7 +24,7 @@ public:
 private:
     GlobalState* global; // Global state to store the current color
     std::shared_ptr<ThreadSync> sync;
-    AlsaInput audio; // Audio input thread
+    std::unique_ptr<AudioInput> audio; // Audio input thread
     std::shared_ptr<FreqData> freq; // Precomputed per-frequency data
     FftData fft; // FFTW3 computations for the left and right channels
     BeatDetect beat; // Beat detector thread

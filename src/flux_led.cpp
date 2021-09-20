@@ -26,7 +26,7 @@ FluxLed::FluxLed(std::string host, GlobalState* state, std::shared_ptr<ThreadSyn
     start_thread();
 }
 
-FluxLed::~FluxLed() {}
+FluxLed::~FluxLed() { }
 
 static inline int socket_connect(std::string& host, in_port_t port)
 {

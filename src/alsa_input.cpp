@@ -6,9 +6,7 @@
 #include <vector>
 
 AlsaInput::AlsaInput(GlobalState* state, std::shared_ptr<ThreadSync> ts)
-    : global(state)
-    , samples(new CircularBuffer<Sample>(524288))
-    , sync(ts)
+    : AudioInput(state, ts)
 {
     const char* audio_source = "hw:CARD=audioinjectorpi,DEV=0";
 
@@ -31,15 +29,15 @@ AlsaInput::AlsaInput(GlobalState* state, std::shared_ptr<ThreadSync> ts)
     snd_pcm_hw_params_set_format(handle, params, pcm_format);
 
     // Assuming stereo
-    unsigned int pcm_channels = 2;
+    unsigned int pcm_channels = channels;
     snd_pcm_hw_params_set_channels(handle, params, pcm_channels);
 
     // Trying our rate
-    unsigned int pcm_rate = 44100;
+    unsigned int pcm_rate = rate;
     snd_pcm_hw_params_set_rate_near(handle, params, &pcm_rate, NULL);
 
     // Number of frames per read
-    snd_pcm_uframes_t pcm_frames = 256;
+    snd_pcm_uframes_t pcm_frames = frames;
     snd_pcm_hw_params_set_period_size_near(handle, params, &pcm_frames, NULL);
 
     // Try setting the desired parameters
@@ -92,14 +90,7 @@ AlsaInput::AlsaInput(GlobalState* state, std::shared_ptr<ThreadSync> ts)
 
 AlsaInput::~AlsaInput() { snd_pcm_close(handle); }
 
-void AlsaInput::start_thread()
-{
-    thread = std::thread([this] { input_alsa(); });
-}
-
-void AlsaInput::join_thread() { thread.join(); }
-
-void AlsaInput::input_alsa()
+void AlsaInput::input_audio()
 {
     // Note: in one-channel case, loff and roff will be equal
     // Bytes per sample, e.g. 2 for 16-bit, 3 for 24-bit, 4 for 32-bit

@@ -1,21 +1,23 @@
 #include "spectrum.h"
 
+#include "pulse_input.h"
+
 Spectrum::Spectrum(GlobalState* state, int N)
     : global(state)
     , sync(new ThreadSync())
-    , audio(state, sync)
-    , freq(new FreqData(N, audio.get_rate()))
-    , fft(N, audio.get_data())
-    , beat(state, audio.get_data(), sync, freq, audio.get_rate(), 131072)
+    , audio(new PulseInput(state, sync))
+    , freq(new FreqData(N, audio->get_rate()))
+    , fft(N, audio->get_data())
+    , beat(state, audio->get_data(), sync, freq, audio->get_rate(), 131072)
 {
-    audio.start_thread();
+    audio->start_thread();
     beat.start_thread();
 }
 
 Spectrum::~Spectrum()
 {
     beat.join_thread();
-    audio.join_thread();
+    audio->join_thread();
 }
 
 FreqData& Spectrum::process()
