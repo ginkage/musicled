@@ -42,8 +42,7 @@ PulseInput::PulseInput(GlobalState* state, std::shared_ptr<ThreadSync> ts)
     std::cout << source << std::endl;
 
     int error;
-    unsigned int frag_size = frames * channels * format
-        / 8; // We double this because of CPU performance issues with pulseaudio.
+    unsigned int frag_size = frames * channels * format / 8;
     pa_buffer_attr attr = {
         .maxlength = (uint32_t)-1, .tlength = 0, .prebuf = 0, .minreq = 0, .fragsize = frag_size
     };
