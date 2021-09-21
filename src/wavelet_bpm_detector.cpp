@@ -20,7 +20,7 @@ WaveletBPMDetector::WaveletBPMDetector(int rate, int size, std::shared_ptr<FreqD
     , dCSum(dCMinLength)
     , minute(sampleRate * 60.0f / maxPace)
     , minIndex(minute / 220.0f)
-    , maxIndex(minute / 40.0f)
+    , maxIndex(minute / std::max(40.0f, sampleRate * 180.0f / windowSize))
     , in(corr.data())
     , out(fftwf_alloc_complex(corrSize / 2 + 1))
     , plan_forward(fftwf_plan_dft_r2c_1d(corrSize, in, out, FFTW_ESTIMATE))
