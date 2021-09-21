@@ -93,8 +93,9 @@ void PulseInput::on_context_state(pa_context* context)
 
 void PulseInput::on_server_info(pa_context* context, const pa_server_info* info)
 {
-    source = info->default_sink_name;
-    source += ".monitor";
+    source = info->default_source_name;
+    // source = info->default_sink_name;
+    // source += ".monitor";
 
     pa_context_disconnect(context);
     pa_context_unref(context);
