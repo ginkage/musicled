@@ -28,4 +28,8 @@ private:
     std::shared_ptr<FreqData> freq; // Precomputed per-frequency data
     FftData fft; // FFTW3 computations for the left and right channels
     BeatDetect beat; // Beat detector thread
+
+    using Timestamp = std::chrono::steady_clock::time_point;
+    using Duration = std::chrono::steady_clock::duration;
+    SlidingMedian<unsigned long, Timestamp, Duration> slide;
 };

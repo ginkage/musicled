@@ -130,6 +130,9 @@ void Visualizer::redraw(FreqData& freq)
     XSetForeground(dis, gc, 0);
     XFillRectangle(dis, back_buffer, gc, 0, 0, width, height);
 
+    XSetForeground(dis, gc, global->send_color.ic);
+    XFillRectangle(dis, back_buffer, gc, width * 0.25, ky, width * 0.5, 2 * ky);
+
     // Draw the lines
     for (int k = freq.minK; k < freq.maxK; k++) {
         prevAmp = std::max(prevAmp, freq.amp[k]);

@@ -5,8 +5,8 @@ template <class T, class Timestamp, class Duration> class SlidingMedian {
     using Sample = std::pair<T, Timestamp>;
 
 public:
-    SlidingMedian(Duration window)
-        : windowSize(window)
+    SlidingMedian(Duration size)
+        : window_size(size)
     {
     }
 
@@ -14,7 +14,7 @@ public:
     {
         // Assume that equal timestamps correspond to equal values.
         // Remove oldest values from the old data.
-        Timestamp oldest = sample.second - windowSize;
+        Timestamp oldest = sample.second - window_size;
         while (!data.empty() && data.front().second <= oldest) {
             Sample& s = data.front();
             if (left.erase(s) == 0) {
@@ -54,8 +54,10 @@ public:
         return middle;
     }
 
+    void set_window_size(Duration size) { window_size = size; }
+
 private:
-    Duration windowSize;
+    Duration window_size;
 
     // Sorted by timestamp
     std::queue<Sample> data;
