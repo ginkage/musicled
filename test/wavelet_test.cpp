@@ -1,8 +1,8 @@
-#include "../src/daubechies8.h"
+#include "../src/wavelet.h"
 
 #include <iostream>
 
-std::vector<double> data { 0.39098764440180633, 0.6538029234086782, 0.9046206992006854,
+std::vector<float> data { 0.39098764440180633, 0.6538029234086782, 0.9046206992006854,
     0.564112169075078, 0.6541605982031828, 0.39006858899059205, 0.3460772054272938,
     0.77803923478657, 0.9914246914137276, 0.41836846138700245, 0.32604008545419194,
     0.38872040695811694, 0.7537009278274582, 0.9011355649710874, 0.6565208812794074,
@@ -70,25 +70,24 @@ std::vector<double> data { 0.39098764440180633, 0.6538029234086782, 0.9046206992
 
 int main()
 {
-    std::vector<decomposition> decomp = Wavelet::alloc(data.size(), 8);
-    Daubechies8 wavelet;
-    wavelet.decompose(data, decomp);
+    Wavelet wavelet(data.size(), 8);
+    std::vector<decomposition>& decomp = wavelet.decompose(data);
     for (decomposition& d : decomp) {
         std::cout << "approx:";
-        for (double& v : d.first) {
+        for (float& v : d.first) {
             std::cout << ' ' << v;
         }
         std::cout << std::endl;
         std::cout << "detail:";
-        for (double& v : d.second) {
+        for (float& v : d.second) {
             std::cout << ' ' << v;
         }
         std::cout << std::endl;
     }
 
-    double last_approx = decomp[7].first[0], last_detail = decomp[7].second[0];
-    double approx = 8.113703714464428, detail = -0.2109971056451759;
-    double diff
+    float last_approx = decomp[7].first[0], last_detail = decomp[7].second[0];
+    float approx = 8.113703714464428, detail = -0.2109971056451759;
+    float diff
         = (std::abs((last_approx - approx) / approx) + std::abs((last_detail - detail) / detail))
         / 2;
 
